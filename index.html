@@ -200,6 +200,32 @@ textarea{resize:vertical;min-height:70px;}
 <div id="toasts"></div>
 <div id="printArea"></div>
 
+<!-- Floating Scan Button (visible on all pages) -->
+<button id="fabScan" onclick="openGlobalScanner()" style="
+  position:fixed;bottom:24px;right:24px;z-index:150;
+  width:60px;height:60px;border-radius:50%;border:none;
+  background:var(--amber);color:#000;font-size:26px;
+  cursor:pointer;box-shadow:0 4px 20px rgba(240,165,0,.5);
+  transition:all .2s;display:flex;align-items:center;justify-content:center;
+" title="Scan QR / Barcode">📷</button>
+
+<!-- Global Scanner Modal -->
+<div id="m-globalScan" class="mover" style="display:none" onclick="mOut(event,'globalScan')">
+  <div class="modal">
+    <div class="mh"><span class="mt">📷 Scan QR / Barcode</span><button class="xb" onclick="closeGlobalScanner()">✕</button></div>
+    <div class="mb">
+      <div id="gs-reader" style="margin-bottom:12px;border-radius:8px;overflow:hidden"></div>
+      <div id="gs-result" style="display:none;background:var(--gglow);border:1px solid rgba(40,201,122,.3);border-radius:6px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--green)"></div>
+      <p class="dim" style="text-align:center;margin:10px 0">— or enter code manually —</p>
+      <div class="fg mb12">
+        <label>QR / Barcode Value</label>
+        <input type="text" id="gsManual" placeholder="e.g. FX-001 or BLB-A-003" oninput="this.value=this.value.toUpperCase()" autocomplete="off" onkeydown="if(event.key==='Enter')gsSubmit()">
+      </div>
+      <div id="gsActions" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- PIN overlay -->
 <div id="pinOverlay" class="pin-overlay" style="display:none">
   <div class="pin-box">
@@ -628,11 +654,37 @@ textarea{resize:vertical;min-height:70px;}
   <div class="modal">
     <div class="mh"><span class="mt">✅ Mark Replaced</span><button class="xb" onclick="closeM('markReplaced')">✕</button></div>
     <div class="mb">
+
+      <!-- Fixture info -->
       <div id="repInfo" style="background:var(--gglow);border:1px solid rgba(40,201,122,.3);border-radius:6px;padding:12px;margin-bottom:14px"></div>
-      <div class="fg mb12"><label>Replacing Technician *</label><div class="tpg" id="repTechG"></div></div>
-      <div class="fgrid mb10">
-        <div class="fg"><label>Bulb ID / Serial (optional)</label><input id="rbulbid" placeholder="e.g. BLB-A-003 or serial no."></div>
-        <div class="fg"><label>Bulb Condition</label>
+
+      <!-- Technician -->
+      <div class="fg mb14"><label>Replacing Technician *</label><div class="tpg" id="repTechG"></div></div>
+
+      <!-- SCAN BULB PACKAGE -->
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:8px;padding:14px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;color:var(--amber)">📦 Scan Bulb Package</div>
+        <p class="dim mb10">Scan the label on the bulb package you are installing. The app will verify it matches this fixture and deduct it from stock.</p>
+
+        <!-- Scanner area -->
+        <div id="repScannerWrap" style="display:none;margin-bottom:10px;border-radius:6px;overflow:hidden">
+          <div id="rep-qr-reader"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:flex-end;margin-bottom:10px">
+          <div class="fg">
+            <label>Bulb Label / ID</label>
+            <input id="rbulbid" placeholder="Scan or type e.g. BLB-A-003" oninput="onBulbIdInput(this.value)">
+          </div>
+          <button class="btn bb" id="repCamBtn" onclick="toggleRepCamera()" style="white-space:nowrap">📷 Scan</button>
+        </div>
+
+        <!-- Match result banner -->
+        <div id="repMatchBanner" style="display:none;border-radius:6px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:10px"></div>
+
+        <!-- Bulb condition (auto-set after scan, can be overridden) -->
+        <div class="fg">
+          <label>Bulb Condition</label>
           <select id="rbulbcond">
             <option value="new">✅ New bulb from stock</option>
             <option value="reused">♻️ Reused / previously used</option>
@@ -640,15 +692,22 @@ textarea{resize:vertical;min-height:70px;}
           </select>
         </div>
       </div>
-      <div class="fg mb10"><label>Notes</label><input id="rnotes" placeholder="Optional notes"></div>
-      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--aglow);border:1px solid rgba(240,165,0,.3);border-radius:6px;margin-top:4px">
+
+      <!-- Notes -->
+      <div class="fg mb12"><label>Notes</label><input id="rnotes" placeholder="Optional notes"></div>
+
+      <!-- Deduct checkbox -->
+      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--aglow);border:1px solid rgba(240,165,0,.3);border-radius:6px">
         <input type="checkbox" id="rdeduct" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--amber)">
-        <div><div style="font-size:13px;font-weight:700;color:var(--amber)">Deduct 1 bulb from inventory</div><div class="dim">Uncheck if no bulb was used (e.g. tripped breaker, false alarm)</div></div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--amber)">Deduct 1 bulb from inventory</div>
+          <div class="dim">Uncheck if no bulb was used (e.g. tripped breaker, false alarm)</div>
+        </div>
       </div>
     </div>
     <div class="mf">
-      <button class="btn bgh" onclick="closeM('markReplaced')">Cancel</button>
-      <button class="btn bg" onclick="submitReplaced()">Confirm Replaced</button>
+      <button class="btn bgh" onclick="closeRepModal()">Cancel</button>
+      <button class="btn bg" onclick="submitReplaced()">✅ Confirm Replaced</button>
     </div>
   </div>
 </div>
@@ -658,7 +717,7 @@ textarea{resize:vertical;min-height:70px;}
     <div class="mh"><span class="mt">📦 Receive Bulb Batch</span><button class="xb" onclick="closeM('receiveBulbs')">✕</button></div>
     <div class="mb">
       <div class="fgrid mb12">
-        <div class="fg"><label>Bulb Type *</label><input id="btype" placeholder="PAR64 1000W"></div>
+        <div class="fg"><label>Bulb Type * <button class="btn bgh bsm" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="scanIntoField('btype')">📷 Scan</button></label><input id="btype" placeholder="PAR64 1000W or scan label"></div>
         <div class="fg"><label>Quantity *</label><input id="bqty" type="number" placeholder="12" min="1"></div>
         <div class="fg"><label>Supplier</label><input id="bsup" placeholder="Supplier name"></div>
         <div class="fg"><label>Low Stock Threshold</label><input id="bthr" type="number" placeholder="3" min="1"></div>
@@ -713,7 +772,7 @@ window.addEventListener('syncStatus',e=>{const{state,msg}=e.detail;setSyncState(
 
 // ── Navigation ──
 function go(page){
-  stopCamera();
+  stopCamera();stopGsScanner&&stopGsScanner();
   ['dashboard','fixtures','inventory','history','stats','scan','crew','settings'].forEach(p=>{
     document.getElementById('pg-'+p).style.display=p===page?'':'none';
     document.getElementById('nav-'+p)?.classList.toggle('active',p===page);
@@ -883,12 +942,13 @@ function renderInv(){
     ?'<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:28px">No usage logged yet</td></tr>'
     :[...db.usageLog].sort((a,b)=>b.date-a.date).map(u=>{
       const condIcon=u.bulbCondition==='blown'?'💀 Blown':u.bulbCondition==='reused'?'♻️ Reused':'✅ New';
+      const mismatchTag=u.mismatch?'<span style="color:var(--amber);font-size:10px;display:block">⚠️ type mismatch</span>':'';
       const condCol=u.bulbCondition==='blown'?'var(--red)':u.bulbCondition==='reused'?'var(--amber)':'var(--green)';
       return`<tr>
         <td class="dim">${fmtD(u.date)}</td><td>${u.bulbType}</td><td><strong>${u.qty}</strong></td>
         <td class="mono">${u.fixture}</td><td>${u.tech||'—'}</td>
         <td class="mono" style="font-size:11px">${u.bulbId||'—'}</td>
-        <td style="color:${condCol};font-size:12px;font-weight:600">${u.bulbCondition?condIcon:'—'}</td>
+        <td style="color:${condCol};font-size:12px;font-weight:600">${u.bulbCondition?condIcon:'—'}${mismatchTag}</td>
       </tr>`;}).join('');
 }
 function deleteInvRow(t){
@@ -1091,9 +1151,9 @@ function openM(id){
   if(id==='markReplaced')buildTechGrid('repTechG','replace');
   if(id==='receiveBulbs')buildTechGrid('recvTechG','recv');
 }
-function closeM(id){document.getElementById('m-'+id).style.display='none';}
+function closeM(id){document.getElementById('m-'+id).style.display='none';if(id==='markReplaced')stopRepCamera&&stopRepCamera();}
 function mOut(e,id){if(e.target===document.getElementById('m-'+id))closeM(id);}
-function closeAllM(){['whoAmI','addTech','editTech','addFixture','editFixture','viewFixture','reportOutage','markReplaced','receiveBulbs','changeMyPw'].forEach(closeM);}
+function closeAllM(){['whoAmI','addTech','editTech','addFixture','editFixture','viewFixture','reportOutage','markReplaced','receiveBulbs','changeMyPw','globalScan'].forEach(closeM);}
 function buildWhoGrid(){
   const el=document.getElementById('whoGrid');
   if(!db.technicians.length){el.innerHTML='<p class="dim">No technicians yet.</p>';return;}
@@ -1264,11 +1324,23 @@ function openOutModal(fid){
 function openRepModal(fid){
   const f=db.fixtures.find(x=>x.id===fid);if(!f)return;
   _curFix=fid;_selTech['replace']=_techId||null;
-  document.getElementById('repInfo').innerHTML=`<div class="fw7" style="font-size:14px;margin-bottom:3px">${f.name}</div><div class="dim">${f.location} · ${f.bulbType}</div>`;
+  document.getElementById('repInfo').innerHTML=`
+    <div class="fw7" style="font-size:14px;margin-bottom:3px">${f.name}</div>
+    <div class="dim">${f.location}</div>
+    <div style="margin-top:6px;font-family:var(--mono);font-size:11px">
+      Required bulb: <strong style="color:var(--amber)">${f.bulbType}</strong>
+      ${(()=>{const inv=db.inventory.find(i=>i.bulbType===f.bulbType);return inv?`<span style="margin-left:10px;color:${inv.inStock>0?'var(--green)':'var(--red)'}">${inv.inStock} in stock</span>`:'<span style="color:var(--red);margin-left:10px">Not in inventory</span>';})()}
+    </div>`;
   document.getElementById('rnotes').value='';
   document.getElementById('rbulbid').value='';
   document.getElementById('rbulbcond').value='new';
+  document.getElementById('repMatchBanner').style.display='none';
+  stopRepCamera();
   openM('markReplaced');
+}
+function closeRepModal(){
+  stopRepCamera();
+  closeM('markReplaced');
 }
 function submitOutage(){
   const f=db.fixtures.find(x=>x.id===_curFix);if(!f)return;
@@ -1280,6 +1352,91 @@ function submitOutage(){
   sendNotif('🔴 Fixture Out: '+f.name,'Reported by '+t.name+' — '+f.id);
   save();closeM('reportOutage');toast('Outage reported for '+f.id,'error');refreshPage();
 }
+// ── In-modal replacement camera ──
+let _repCamScanner=null, _repCamRunning=false;
+
+function toggleRepCamera(){
+  _repCamRunning?stopRepCamera():startRepCamera();
+}
+function startRepCamera(){
+  const wrap=document.getElementById('repScannerWrap');
+  const btn=document.getElementById('repCamBtn');
+  wrap.style.display='';
+  btn.textContent='⏹ Stop';
+  _repCamScanner=new Html5Qrcode('rep-qr-reader');
+  _repCamRunning=true;
+  _repCamScanner.start(
+    {facingMode:'environment'},
+    {fps:10,qrbox:{width:220,height:220}},
+    code=>{
+      stopRepCamera();
+      document.getElementById('rbulbid').value=code.toUpperCase();
+      onBulbIdInput(code.toUpperCase());
+    },
+    ()=>{}
+  ).catch(err=>{toast('Camera error: '+err,'error');stopRepCamera();});
+}
+function stopRepCamera(){
+  if(_repCamScanner&&_repCamRunning){
+    _repCamScanner.stop().catch(()=>{});
+    _repCamRunning=false;_repCamScanner=null;
+  }
+  const wrap=document.getElementById('repScannerWrap');
+  if(wrap){wrap.style.display='none';const el=document.getElementById('rep-qr-reader');if(el)el.innerHTML='';}
+  const btn=document.getElementById('repCamBtn');
+  if(btn)btn.textContent='📷 Scan';
+}
+
+// Called whenever bulb ID field changes (scan or manual)
+function onBulbIdInput(code){
+  const banner=document.getElementById('repMatchBanner');
+  if(!code){banner.style.display='none';return;}
+  const f=db.fixtures.find(x=>x.id===_curFix);
+  if(!f){return;}
+
+  // Look up this bulb code in inventory
+  // The code is a label like BLB-A-003 — we need to find which bulb type it belongs to
+  // We match by checking if any inventory type starts with or is contained in the code prefix
+  // OR if the code exactly matches a bulb type
+  const inv=db.inventory.find(i=>i.bulbType.toUpperCase()===code)||
+            db.inventory.find(i=>code.startsWith(i.bulbType.toUpperCase().replace(/\s/g,'-')))||
+            null;
+
+  const fixtureType=f.bulbType.toUpperCase();
+  const isMatch=inv&&inv.bulbType.toUpperCase()===fixtureType;
+  const inStock=inv?inv.inStock:null;
+
+  let html='', bg='', border='';
+
+  if(!inv){
+    // Code not found in inventory — it's a label like BLB-A-003
+    // Show it as a new bulb from stock, condition unknown
+    bg='var(--bglow)'; border='rgba(61,155,233,.3)';
+    html=`<div style="color:var(--blue)">📦 Bulb scanned: <strong>${code}</strong></div>
+          <div class="dim" style="margin-top:4px">Not matched to an inventory type — logged as scanned label</div>`;
+    document.getElementById('rbulbcond').value='new';
+  } else if(isMatch){
+    // Perfect match
+    bg='var(--gglow)'; border='rgba(40,201,122,.3)';
+    html=`<div style="color:var(--green)">✅ Correct bulb type: <strong>${inv.bulbType}</strong></div>
+          <div class="dim" style="margin-top:4px">${inStock} in stock · Will deduct 1 on confirm</div>`;
+    document.getElementById('rbulbcond').value='new';
+    document.getElementById('rdeduct').checked=true;
+  } else {
+    // Mismatch — log it but continue
+    bg='var(--aglow)'; border='rgba(240,165,0,.3)';
+    html=`<div style="color:var(--amber)">⚠️ Bulb type mismatch!</div>
+          <div class="dim" style="margin-top:4px">Scanned: <strong>${inv.bulbType}</strong> · Fixture needs: <strong>${f.bulbType}</strong></div>
+          <div style="font-size:11px;color:var(--amber);margin-top:4px">Logged as mismatch — you can still proceed</div>`;
+    document.getElementById('rbulbcond').value='reused';
+  }
+
+  banner.style.display='';
+  banner.style.background=bg;
+  banner.style.border='1px solid '+border;
+  banner.innerHTML=html;
+}
+
 function submitReplaced(){
   const f=db.fixtures.find(x=>x.id===_curFix);if(!f)return;
   const t=getTech('replace');if(!t){toast('Select a technician first','error');return;}
@@ -1292,9 +1449,13 @@ function submitReplaced(){
     if(inv&&inv.inStock>0){inv.inStock--;inv.totalUsed++;}
     const bulbId=document.getElementById('rbulbid').value.trim();
     const bulbCond=document.getElementById('rbulbcond').value;
-    db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id,bulbId,bulbCondition:bulbCond});
+    // Detect mismatch: scanned bulb doesn't match fixture bulb type
+    const scannedInv=bulbId?(db.inventory.find(i=>i.bulbType.toUpperCase()===bulbId)||db.inventory.find(i=>bulbId.startsWith(i.bulbType.toUpperCase().replace(/\s/g,'-')))):null;
+    const mismatch=scannedInv&&scannedInv.bulbType.toUpperCase()!==f.bulbType.toUpperCase();
+    db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id,bulbId,bulbCondition:bulbCond,mismatch:mismatch||false,scannedBulbType:scannedInv?scannedInv.bulbType:null});
     if(bulbCond==='blown') toast('⚠️ Blown bulb logged — fixture may not be fixed!','error');
     if(bulbCond==='reused') toast('♻️ Reused bulb logged','info');
+    if(mismatch) toast('⚠️ Mismatch logged: '+scannedInv.bulbType+' used in '+f.bulbType+' fixture','info');
     if(inv&&inv.inStock<=inv.threshold){
       sendLowStockAlerts(f.bulbType,inv.inStock,inv.threshold,t.name);
       sendNotif('📦 Low Stock: '+f.bulbType,inv.inStock+' remaining (threshold: '+inv.threshold+')');
@@ -1390,8 +1551,88 @@ function resetAllData(){
 }
 
 // ── Camera ──
+let _gsScanner=null, _gsRunning=false, _gsFieldTarget=null;
+
 function toggleCamera(){_camRunning?stopCamera():startCamera();}
+
+function openGlobalScanner(fieldTarget){
+  _gsFieldTarget=fieldTarget||null;
+  document.getElementById('gsManual').value='';
+  document.getElementById('gs-result').style.display='none';
+  // Set action buttons based on context
+  const acts=document.getElementById('gsActions');
+  if(fieldTarget){
+    acts.innerHTML=`<button class="btn ba" style="grid-column:1/-1;justify-content:center" onclick="gsSubmitToField()">✅ Use This Code</button>`;
+  } else {
+    acts.innerHTML=`
+      <button class="btn br" onclick="gsAction('outage')">🔴 Report Outage</button>
+      <button class="btn bg" onclick="gsAction('replace')">✅ Mark Replaced</button>
+      <button class="btn bgh" onclick="gsAction('scanIn')">📥 Bulb Scan IN</button>
+      <button class="btn ba" onclick="gsSubmit()" style="grid-column:2">🔍 Auto-Detect</button>`;
+  }
+  document.getElementById('m-globalScan').style.display='flex';
+  // Start scanner
+  setTimeout(()=>{
+    const el=document.getElementById('gs-reader');
+    if(!el)return;
+    _gsScanner=new Html5Qrcode('gs-reader');_gsRunning=true;
+    _gsScanner.start({facingMode:'environment'},{fps:10,qrbox:{width:240,height:240}},
+      code=>{
+        const upper=code.toUpperCase();
+        document.getElementById('gsManual').value=upper;
+        document.getElementById('gs-result').style.display='';
+        document.getElementById('gs-result').textContent='✅ Scanned: '+upper;
+        stopGsScanner();
+        if(_gsFieldTarget) gsSubmitToField();
+        else gsSubmit();
+      },()=>{}
+    ).catch(err=>{toast('Camera error: '+err,'error');stopGsScanner();});
+  },200);
+}
+
+function stopGsScanner(){
+  if(_gsScanner&&_gsRunning){_gsScanner.stop().catch(()=>{});_gsRunning=false;_gsScanner=null;}
+}
+function closeGlobalScanner(){
+  stopGsScanner();
+  document.getElementById('m-globalScan').style.display='none';
+  document.getElementById('gs-reader').innerHTML='';
+}
+function gsSubmit(){
+  const code=document.getElementById('gsManual').value.trim().toUpperCase();
+  if(!code){toast('Scan or enter a code first','error');return;}
+  closeGlobalScanner();
+  smartHandleCode(code);
+}
+function gsAction(action){
+  const code=document.getElementById('gsManual').value.trim().toUpperCase();
+  if(!code){toast('Scan or enter a code first','error');return;}
+  if(action==='outage'||action==='replace'){
+    const f=db.fixtures.find(x=>x.id===code);
+    if(!f){toast('Fixture "'+code+'" not found','error');return;}
+    closeGlobalScanner();
+    if(action==='outage')openOutModal(f.id);else openRepModal(f.id);
+  } else if(action==='scanIn'){
+    closeGlobalScanner();
+    openM('receiveBulbs');
+    document.getElementById('btype').value=code;
+    toast('📦 Fill in quantity to receive','info');
+  }
+}
+function gsSubmitToField(){
+  const code=document.getElementById('gsManual').value.trim().toUpperCase();
+  if(!code){toast('Scan or enter a code first','error');return;}
+  const el=document.getElementById(_gsFieldTarget);
+  if(el) el.value=code;
+  closeGlobalScanner();
+  toast('✅ Code entered: '+code,'success');
+}
+// Scan directly into a specific input field (e.g. bulb ID field in replace modal)
+function scanIntoField(fieldId){
+  openGlobalScanner(fieldId);
+}
 function startCamera(){
+  stopRepCamera&&stopRepCamera();
   document.getElementById('qr-reader').style.display='';
   document.getElementById('camBtn').textContent='⏹ Stop Camera';
   _camScanner=new Html5Qrcode('qr-reader');_camRunning=true;
@@ -1408,8 +1649,31 @@ function handleScannedCode(code){
   document.getElementById('manualId').value=code.toUpperCase();
   const res=document.getElementById('scanResult');res.style.display='';res.textContent='✅ Scanned: '+code;
   stopCamera();
-  const f=db.fixtures.find(x=>x.id===code.toUpperCase());
-  if(f){toast('Found: '+f.name,'info');if(f.status==='out')openRepModal(f.id);else openOutModal(f.id);}
+  smartHandleCode(code.toUpperCase());
+}
+function smartHandleCode(code){
+  // Check if it's a known fixture
+  const fixture=db.fixtures.find(x=>x.id===code);
+  if(fixture){
+    toast('💡 Fixture: '+fixture.name,'info');
+    if(fixture.status==='out') openRepModal(fixture.id);
+    else openOutModal(fixture.id);
+    return;
+  }
+  // Check if it looks like a bulb label (contains BLB, BULB, or matches inventory type)
+  const isBulbLabel=code.includes('BLB')||code.includes('BULB');
+  const invMatch=db.inventory.find(i=>i.bulbType.toUpperCase()===code);
+  if(isBulbLabel||invMatch){
+    // Open receive bulbs with type pre-filled
+    openM('receiveBulbs');
+    if(invMatch) document.getElementById('btype').value=invMatch.bulbType;
+    else document.getElementById('btype').value=code;
+    toast('📦 Bulb scanned — fill in quantity to receive','info');
+    return;
+  }
+  // Unknown code — show options
+  document.getElementById('manualId').value=code;
+  toast('❓ Unknown code "'+code+'" — use buttons below to act on it','info');
 }
 function scanAction(action){
   const id=document.getElementById('manualId').value.trim().toUpperCase();
