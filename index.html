@@ -21,8 +21,7 @@ const firebaseConfig = {
   storageBucket:     "light-tracker-d708f.firebasestorage.app",
   messagingSenderId: "268758980349",
   appId:             "1:268758980349:web:111d497335e8bbefb65094"
-};
-// ═══════════════════════════════════════════════════
+};// ═══════════════════════════════════════════════════
 
 const DB_DOC = "stage-light-tracker/main";
 let app, fsdb;
@@ -79,6 +78,9 @@ window._saveToFirebase = async (data) => {
 initFirebase();
 </script>
 
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init("LQHE0BV7ztF4iXf_v");</script>
 <!-- QR Scanner -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <!-- QR Code generator -->
@@ -368,6 +370,7 @@ select option{background:var(--s2);}
         <div class="fg"><label>Full Name *</label><input id="tn" placeholder="Jane Smith"></div>
         <div class="fg"><label>Role / Title</label><input id="tr" placeholder="Head Technician"></div>
         <div class="fg"><label>Avatar Emoji</label><input id="ta" placeholder="👷" maxlength="2" style="font-size:20px;text-align:center"></div>
+        <div class="fg" style="grid-column:1/-1"><label>Email Address (for low stock alerts)</label><input id="tem" type="email" placeholder="jane@example.com"></div>
       </div>
     </div>
     <div class="mf">
@@ -633,7 +636,7 @@ function renderCrew() {
     ? '<p class="dim">No technicians yet — click "+ Add Technician" to get started</p>'
     : db.technicians.map(t=>`<div class="tcard">
         <div style="font-size:28px">${t.avatar||'👤'}</div>
-        <div><div class="fw7" style="font-size:14px">${t.name}</div><div class="dim">${t.role||'Technician'}</div></div>
+        <div><div class="fw7" style="font-size:14px">${t.name}</div><div class="dim">${t.role||'Technician'}</div>${t.email?`<div class="dim" style="color:var(--blue)">${t.email}</div>`:'<div class="dim" style="color:var(--red)">No email set</div>'}</div>
         <button class="btn bgh bsm" style="margin-left:auto" onclick="removeTech('${t.id}')">✕</button>
       </div>`).join('');
   document.getElementById('crewStats').innerHTML = !db.technicians.length ? ''
@@ -694,12 +697,34 @@ function addTech(){
   const name=document.getElementById('tn').value.trim();
   const role=document.getElementById('tr').value.trim();
   const av=document.getElementById('ta').value.trim()||'👤';
+  const email=document.getElementById('tem').value.trim();
   if(!name){toast('Name required','error');return;}
-  db.technicians.push({id:'t'+Date.now(),name,role,avatar:av});
+  db.technicians.push({id:'t'+Date.now(),name,role,avatar:av,email});
   save();closeM('addTech');renderCrew();
-  document.getElementById('tn').value='';document.getElementById('tr').value='';document.getElementById('ta').value='';
+  document.getElementById('tn').value='';document.getElementById('tr').value='';document.getElementById('ta').value='';document.getElementById('tem').value='';
   toast(name+' added to crew','success');
 }
+// ── Low stock email alerts ──
+async function sendLowStockAlerts(bulbType, currentStock, threshold, techName) {
+  const recipients = db.technicians.filter(t => t.email && t.email.includes('@'));
+  if (!recipients.length) return;
+  const timeStr = new Date().toLocaleString('en-CA',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  for (const rec of recipients) {
+    try {
+      await emailjs.send('service_pjzebxk', 'template_ebt36uu', {
+        to_email:      rec.email,
+        to_name:       rec.name,
+        bulb_type:     bulbType,
+        current_stock: currentStock,
+        threshold:     threshold,
+        technician:    techName,
+        time:          timeStr
+      });
+    } catch(e) { console.warn('Email failed for '+rec.email, e); }
+  }
+  toast('📧 Low stock alert sent to '+recipients.length+' crew member'+(recipients.length>1?'s':''),'info');
+}
+
 function removeTech(id){
   if(!confirm('Remove this technician?'))return;
   db.technicians=db.technicians.filter(t=>t.id!==id);
@@ -747,6 +772,10 @@ function submitReplaced(){
   const inv=db.inventory.find(i=>i.bulbType===f.bulbType);
   if(inv&&inv.inStock>0){inv.inStock--;inv.totalUsed++;}
   db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id});
+  // Check if stock has hit or gone below threshold — send alerts if so
+  if(inv && inv.inStock<=inv.threshold){
+    sendLowStockAlerts(f.bulbType, inv.inStock, inv.threshold, t.name);
+  }
   save();closeM('markReplaced');toast('Fixture '+f.id+' replaced — 1 bulb deducted','success');refreshPage();
 }
 function receiveBulbs(){
