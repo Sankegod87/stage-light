@@ -559,7 +559,10 @@ textarea{resize:vertical;min-height:70px;}
       <div id="repInfo" style="background:var(--gglow);border:1px solid rgba(40,201,122,.3);border-radius:6px;padding:12px;margin-bottom:14px"></div>
       <div class="fg mb12"><label>Replacing Technician *</label><div class="tpg" id="repTechG"></div></div>
       <div class="fg mb10"><label>Notes</label><input id="rnotes" placeholder="Optional notes"></div>
-      <p style="font-size:12px;color:var(--amber)">⚠️ Deducts 1 bulb from inventory for this fixture's bulb type.</p>
+      <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--aglow);border:1px solid rgba(240,165,0,.3);border-radius:6px;margin-top:4px">
+        <input type="checkbox" id="rdeduct" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--amber)">
+        <div><div style="font-size:13px;font-weight:700;color:var(--amber)">Deduct 1 bulb from inventory</div><div class="dim">Uncheck if no bulb was used (e.g. tripped breaker, false alarm)</div></div>
+      </div>
     </div>
     <div class="mf">
       <button class="btn bgh" onclick="closeM('markReplaced')">Cancel</button>
@@ -1084,14 +1087,17 @@ function submitReplaced(){
   const out=[...db.outages].filter(o=>o.fixtureId===f.id&&!o.resolved).sort((a,b)=>b.timestamp-a.timestamp)[0];
   if(out){out.resolved=true;out.resolvedAt=Date.now();out.resolvedBy=t.name;out.resolvedTechId=t.id;}
   f.status='ok';
+  const deduct=document.getElementById('rdeduct').checked;
   const inv=db.inventory.find(i=>i.bulbType===f.bulbType);
-  if(inv&&inv.inStock>0){inv.inStock--;inv.totalUsed++;}
-  db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id});
-  if(inv&&inv.inStock<=inv.threshold){
-    sendLowStockAlerts(f.bulbType,inv.inStock,inv.threshold,t.name);
-    sendNotif('📦 Low Stock: '+f.bulbType,inv.inStock+' remaining (threshold: '+inv.threshold+')');
+  if(deduct){
+    if(inv&&inv.inStock>0){inv.inStock--;inv.totalUsed++;}
+    db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id});
+    if(inv&&inv.inStock<=inv.threshold){
+      sendLowStockAlerts(f.bulbType,inv.inStock,inv.threshold,t.name);
+      sendNotif('📦 Low Stock: '+f.bulbType,inv.inStock+' remaining (threshold: '+inv.threshold+')');
+    }
   }
-  save();closeM('markReplaced');toast('Fixture '+f.id+' replaced — 1 bulb deducted','success');refreshPage();
+  save();closeM('markReplaced');toast('Fixture '+f.id+(deduct?' replaced — 1 bulb deducted':' marked resolved — no bulb deducted'),'success');refreshPage();
 }
 function receiveBulbs(){
   const type=document.getElementById('btype').value.trim();
