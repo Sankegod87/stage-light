@@ -476,6 +476,7 @@ textarea{resize:vertical;min-height:70px;}
     <button class="tab" onclick="invTab('orders',this)">Order History</button>
     <button class="tab" onclick="invTab('usage',this)">Usage Log</button>
     <button class="tab" onclick="invTab('used',this)">♻️ Used Bulbs</button>
+    <button class="tab" onclick="invTab('registry',this)">🏷️ Bulb Registry</button>
   </div>
   <div id="it-stock"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
     <thead><tr><th>Bulb Type</th><th>In Stock</th><th>Threshold</th><th>Received</th><th>Used</th><th>Avg Life</th><th>Status</th><th></th></tr></thead>
@@ -489,6 +490,25 @@ textarea{resize:vertical;min-height:70px;}
     <thead><tr><th>Date</th><th>Bulb Type</th><th>Qty</th><th>Fixture</th><th>Technician</th><th>Bulb ID</th><th>Condition</th></tr></thead>
     <tbody id="usageTbl"></tbody>
   </table></div></div></div>
+  <div id="it-registry" style="display:none">
+    <div class="row jbet mb12">
+      <p class="dim">Every individual bulb label generated — full install/pull history per label.</p>
+      <div class="row gap8">
+        <select id="regFilter" onchange="renderBulbRegistry()" style="font-size:11px;padding:5px 8px;width:auto">
+          <option value="all">All Bulbs</option>
+          <option value="in_stock">In Stock</option>
+          <option value="installed">Installed</option>
+          <option value="pulled">Pulled</option>
+          <option value="disposed">Disposed</option>
+        </select>
+      </div>
+    </div>
+    <div class="panel"><div class="pb" style="padding:0"><table class="tbl">
+      <thead><tr><th>Bulb ID</th><th>Type</th><th>Status</th><th>Current Location</th><th>Installs</th><th>Created</th><th>Last Event</th></tr></thead>
+      <tbody id="regTbl"></tbody>
+    </table></div></div>
+  </div>
+
   <div id="it-used" style="display:none">
     <div class="row jbet mb12">
       <p class="dim">Bulbs pulled from fixtures — available for reuse or disposal.</p>
@@ -929,12 +949,12 @@ let _charts={};
 // ── Storage ──
 function lsave(){try{localStorage.setItem(LS_KEY,JSON.stringify(db));}catch(e){}}
 function lload(){
-  try{const s=localStorage.getItem(LS_KEY);if(s){const p=JSON.parse(s);db=Object.assign({fixtures:[],outages:[],inventory:[],orders:[],usageLog:[],technicians:[],settings:{},usedBulbs:[]},p);if(!db.settings)db.settings={};if(!db.usedBulbs)db.usedBulbs=[];}}catch(e){}
+  try{const s=localStorage.getItem(LS_KEY);if(s){const p=JSON.parse(s);db=Object.assign({fixtures:[],outages:[],inventory:[],orders:[],usageLog:[],technicians:[],settings:{},usedBulbs:[],bulbRegistry:[]},p);if(!db.settings)db.settings={};if(!db.usedBulbs)db.usedBulbs=[];if(!db.bulbRegistry)db.bulbRegistry=[];}}catch(e){}
 }
 window._onRemoteData=function(r){
   db.technicians=r.technicians||[];db.fixtures=r.fixtures||[];db.outages=r.outages||[];
   db.inventory=r.inventory||[];db.orders=r.orders||[];db.usageLog=r.usageLog||[];
-  db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];lsave();refreshPage();checkScheduledReport();
+  db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];db.bulbRegistry=r.bulbRegistry||[];lsave();refreshPage();checkScheduledReport();
 };
 async function save(){
   lsave();
@@ -1616,6 +1636,14 @@ function submitOutage(){
   // Send outage alert email + push notification
   sendOutageAlerts(f.name,f.id,f.bulbType,t.name);
   sendNotif('🔴 Fixture Out: '+f.name,'Reported by '+t.name+' — '+f.id);
+  // Update registry — mark any installed bulb for this fixture as pulled
+  const pulledReg=db.bulbRegistry.find(b=>b.installedIn===f.id&&b.status==='installed');
+  if(pulledReg){
+    pulledReg.history.push({event:'pulled',fixture:f.id,fixtureName:f.name,tech:t.name,timestamp:Date.now()});
+    pulledReg.status='pulled';
+    pulledReg.installedIn=null;
+  }
+
   // Auto-log the old bulb as pulled/used when outage reported
   db.usedBulbs.push({
     id:'UB-'+Date.now(),
@@ -1673,7 +1701,72 @@ function onBulbIdInput(code){
   const f=db.fixtures.find(x=>x.id===_curFix);
   if(!f)return;
 
-  // ── STEP 1: Check used bulbs list first ──
+  // ── STEP 0: Check bulb registry — is this label known? Is it already installed? ──
+  const reg=db.bulbRegistry.find(b=>b.bulbId===code);
+  if(reg){
+    if(reg.status==='installed'){
+      // BLOCK — this exact bulb is currently installed in another fixture
+      const installedFix=db.fixtures.find(x=>x.id===reg.installedIn);
+      const fixName=installedFix?installedFix.name:reg.installedIn;
+      banner.style.display='';
+      banner.style.background='var(--rglow)';
+      banner.style.border='1px solid rgba(224,60,60,.5)';
+      banner.innerHTML=`
+        <div style="color:var(--red);font-size:15px;font-weight:900">🚫 BLOCKED — Bulb Already Installed!</div>
+        <div style="margin-top:8px;background:rgba(224,60,60,.1);border-radius:6px;padding:10px">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text)">Bulb <strong>${code}</strong> is currently installed in:</div>
+          <div style="font-size:16px;font-weight:700;color:var(--red);margin-top:4px">${fixName} (${reg.installedIn})</div>
+          <div class="dim" style="margin-top:2px">Installed ${reg.installedAt?ago(reg.installedAt):'unknown'} by ${reg.installedBy||'unknown'}</div>
+        </div>
+        <div style="font-size:11px;color:var(--dim2);margin-top:8px">Scan a different bulb, or confirm below if this bulb was physically removed.</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn br bsm" onclick="forceRegistryOverride('${reg.bulbId}')">⚠️ Override — Bulb Was Removed</button>
+          <button class="btn bgh bsm" onclick="document.getElementById('rbulbid').value='';onBulbIdInput('')">✕ Use Different Bulb</button>
+        </div>`;
+      document.getElementById('rbulbcond').value='reused';
+      document.getElementById('rdeduct').checked=false;
+      return;
+    }
+    if(reg.status==='disposed'){
+      banner.style.display='';
+      banner.style.background='var(--rglow)';
+      banner.style.border='1px solid rgba(224,60,60,.4)';
+      banner.innerHTML=`<div style="color:var(--red);font-weight:700">🚫 BLOCKED — Bulb Marked as Disposed</div>
+        <div class="dim" style="margin-top:4px">Bulb <strong>${code}</strong> (${reg.bulbType}) was disposed of and cannot be used.</div>
+        <button class="btn br bsm" style="margin-top:8px" onclick="forceRegistryOverride('${reg.bulbId}')">Override</button>`;
+      document.getElementById('rbulbcond').value='blown';
+      document.getElementById('rdeduct').checked=false;
+      return;
+    }
+    // Bulb is in_stock or pulled — check type match then fall through
+    if(reg.status==='in_stock'||reg.status==='pulled'){
+      const typeMatch=reg.bulbType.toUpperCase()===f.bulbType.toUpperCase();
+      const inv=db.inventory.find(i=>i.bulbType===reg.bulbType);
+      if(typeMatch){
+        banner.style.display='';
+        banner.style.background='var(--gglow)';
+        banner.style.border='1px solid rgba(40,201,122,.3)';
+        banner.innerHTML=`<div style="color:var(--green);font-weight:700">✅ Registered Bulb — Correct Type</div>
+          <div class="dim" style="margin-top:4px">ID: <strong>${code}</strong> · Type: ${reg.bulbType}${reg.status==='pulled'?' · Previously pulled':''}
+          ${inv?' · '+inv.inStock+' of this type in stock':''}</div>
+          <div class="dim">Created ${ago(reg.createdAt)} · ${reg.history.length} prior installation${reg.history.length!==1?'s':''}</div>`;
+        document.getElementById('rbulbcond').value=reg.status==='pulled'?'reused':'new';
+        document.getElementById('rdeduct').checked=true;
+        return;
+      } else {
+        banner.style.display='';
+        banner.style.background='var(--aglow)';
+        banner.style.border='1px solid rgba(240,165,0,.3)';
+        banner.innerHTML=`<div style="color:var(--amber);font-weight:700">⚠️ Registered Bulb — Type Mismatch</div>
+          <div class="dim" style="margin-top:4px">Scanned: <strong>${reg.bulbType}</strong> · Fixture needs: <strong>${f.bulbType}</strong></div>
+          <div style="font-size:11px;color:var(--amber);margin-top:4px">Mismatch will be logged. You can still proceed.</div>`;
+        document.getElementById('rbulbcond').value='reused';
+        return;
+      }
+    }
+  }
+
+  // ── STEP 1: Check used bulbs list ──
   const usedMatch=db.usedBulbs.find(b=>b.bulbId&&b.bulbId.toUpperCase()===code&&b.status==='available');
   if(usedMatch){
     const typeMatch=usedMatch.bulbType.toUpperCase()===f.bulbType.toUpperCase();
@@ -1747,6 +1840,20 @@ function onBulbIdInput(code){
 
 // Called when technician overrides a used bulb warning
 let _forcedUsedBulbId=null;
+let _forcedRegistryBulbId=null;
+
+function forceRegistryOverride(bulbId){
+  _forcedRegistryBulbId=bulbId;
+  const reg=db.bulbRegistry.find(b=>b.bulbId===bulbId);
+  if(!reg)return;
+  const banner=document.getElementById('repMatchBanner');
+  banner.style.background='var(--aglow)';
+  banner.style.border='1px solid rgba(240,165,0,.3)';
+  banner.innerHTML=`<div style="color:var(--amber);font-weight:700">⚠️ Override accepted</div>
+    <div class="dim" style="margin-top:4px">Bulb <strong>${bulbId}</strong> will be recorded as reinstalled. Previous location cleared.</div>`;
+  document.getElementById('rbulbcond').value='reused';
+  document.getElementById('rdeduct').checked=false;
+}
 function forceUsedBulb(usedBulbId){
   _forcedUsedBulbId=usedBulbId;
   const ub=db.usedBulbs.find(b=>b.id===usedBulbId);
@@ -1774,13 +1881,30 @@ function submitReplaced(){
   // Mark used bulb as reinstalled if one was forced/selected
   if(_forcedUsedBulbId){
     const ub=db.usedBulbs.find(b=>b.id===_forcedUsedBulbId);
-    if(ub){
-      ub.status='reinstalled';
-      ub.reinstalledIn=f.id;
-      ub.reinstalledAt=Date.now();
-      ub.reinstalledBy=t.name;
-    }
+    if(ub){ub.status='reinstalled';ub.reinstalledIn=f.id;ub.reinstalledAt=Date.now();ub.reinstalledBy=t.name;}
     _forcedUsedBulbId=null;
+  }
+
+  // Update bulb registry — mark bulb as installed in this fixture
+  const scannedBulbId=document.getElementById('rbulbid').value.trim().toUpperCase();
+  if(scannedBulbId){
+    let reg=db.bulbRegistry.find(b=>b.bulbId===scannedBulbId);
+    if(!reg){
+      // Auto-register if not already (e.g. old label pre-registry)
+      reg={bulbId:scannedBulbId,bulbType:f.bulbType,status:'in_stock',createdAt:Date.now(),installedIn:null,installedAt:null,installedBy:null,history:[]};
+      db.bulbRegistry.push(reg);
+    }
+    // If overriding an already-installed bulb, log the forced removal
+    if(_forcedRegistryBulbId===scannedBulbId&&reg.installedIn){
+      reg.history.push({event:'force_removed',fixture:reg.installedIn,tech:t.name,timestamp:Date.now()});
+    }
+    // Update registry to installed
+    reg.history.push({event:'installed',fixture:f.id,fixtureName:f.name,tech:t.name,timestamp:Date.now()});
+    reg.status='installed';
+    reg.installedIn=f.id;
+    reg.installedAt=Date.now();
+    reg.installedBy=t.name;
+    _forcedRegistryBulbId=null;
   }
 
   if(deduct){
@@ -2025,27 +2149,90 @@ function printLabels(){
   const type=prompt('Label type:\n1 = Fixture Labels\n2 = Bulb Labels','1');if(!type)return;
   const prefix=(prompt('Prefix (e.g. FX or BLB-A):',type==='1'?'FX':'BLB-A')||'LBL').toUpperCase();
   const qty=Math.min(parseInt(prompt('How many labels?','6')||'6'),100);
+
+  // For bulb labels — ask bulb type so we can register them
+  let bulbType='';
+  if(type==='2'){
+    bulbType=prompt('Bulb type for these labels? (e.g. PAR64 1000W)','')?.trim();
+    if(!bulbType){toast('Bulb type required to register labels','error');return;}
+  }
+
   const pa=document.getElementById('printArea');
   pa.innerHTML=`<div style="font-family:monospace;padding:10px"><h2 style="font-size:14px;margin-bottom:12px;color:#000">Stage Light Tracker — ${type==='1'?'Fixture':'Bulb'} Labels</h2><div id="pqg" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px"></div></div>`;
   const grid=document.getElementById('pqg');
+  const newLabels=[];
+
   for(let i=1;i<=qty;i++){
     const code=prefix+'-'+String(i).padStart(3,'0');
+
+    // Register bulb labels in the registry (skip if already registered)
+    if(type==='2'){
+      const exists=db.bulbRegistry.find(b=>b.bulbId===code);
+      if(!exists){
+        db.bulbRegistry.push({
+          bulbId:code,
+          bulbType,
+          status:'in_stock',       // in_stock | installed | pulled | disposed
+          createdAt:Date.now(),
+          installedIn:null,
+          installedAt:null,
+          installedBy:null,
+          history:[]               // array of {event,fixture,tech,timestamp}
+        });
+        newLabels.push(code);
+      }
+    }
+
     const div=document.createElement('div');
     div.style.cssText='background:#fff;border:1px solid #ccc;border-radius:4px;padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;break-inside:avoid';
     const qd=document.createElement('div');qd.id='plq'+i;div.appendChild(qd);
     const lb=document.createElement('div');lb.style.cssText='font-family:monospace;font-size:9px;font-weight:700;color:#000;margin-top:4px';lb.textContent=code;div.appendChild(lb);
-    const sb=document.createElement('div');sb.style.cssText='font-family:monospace;font-size:8px;color:#555';sb.textContent=type==='1'?'FIXTURE':'BULB';div.appendChild(sb);
+    const sb=document.createElement('div');sb.style.cssText='font-family:monospace;font-size:8px;color:#555';sb.textContent=type==='1'?'FIXTURE':bulbType||'BULB';div.appendChild(sb);
     grid.appendChild(div);
     try{new QRCode(qd,{text:code,width:90,height:90,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}
+  }
+
+  if(newLabels.length>0){
+    save();
+    toast(newLabels.length+' bulb labels registered in registry','success');
   }
   setTimeout(()=>window.print(),600);
 }
 
 // ── Inv tabs ──
 function invTab(tab,btn){
-  ['stock','orders','usage','used'].forEach(t=>document.getElementById('it-'+t).style.display=t===tab?'':'none');
+  ['stock','orders','usage','used','registry'].forEach(t=>document.getElementById('it-'+t).style.display=t===tab?'':'none');
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   if(tab==='used')renderUsedBulbs();
+  if(tab==='registry')renderBulbRegistry();
+}
+
+function renderBulbRegistry(){
+  const tbody=document.getElementById('regTbl');if(!tbody)return;
+  const filter=document.getElementById('regFilter')?.value||'all';
+  let list=[...db.bulbRegistry].sort((a,b)=>b.createdAt-a.createdAt);
+  if(filter!=='all')list=list.filter(b=>b.status===filter);
+  if(!list.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:28px">No bulbs registered yet — generate labels to register them</td></tr>';return;}
+  const statusStyle={
+    in_stock:{icon:'📦',color:'var(--blue)',label:'In Stock'},
+    installed:{icon:'💡',color:'var(--green)',label:'Installed'},
+    pulled:{icon:'♻️',color:'var(--amber)',label:'Pulled'},
+    disposed:{icon:'🗑️',color:'var(--dim)',label:'Disposed'}
+  };
+  tbody.innerHTML=list.map(b=>{
+    const ss=statusStyle[b.status]||{icon:'❓',color:'var(--dim)',label:b.status};
+    const curFix=b.installedIn?db.fixtures.find(f=>f.id===b.installedIn):null;
+    const lastEvent=b.history.length?b.history[b.history.length-1]:null;
+    return`<tr>
+      <td><span class="mono ca" style="font-size:12px">${b.bulbId}</span></td>
+      <td style="font-size:12px">${b.bulbType}</td>
+      <td><span style="color:${ss.color};font-weight:700;font-size:12px">${ss.icon} ${ss.label}</span></td>
+      <td style="font-size:12px">${curFix?curFix.name+' ('+b.installedIn+')':b.status==='installed'?b.installedIn||'—':'—'}</td>
+      <td style="text-align:center"><strong>${b.history.filter(h=>h.event==='installed').length}</strong></td>
+      <td class="dim">${fmtD(b.createdAt)}</td>
+      <td class="dim">${lastEvent?lastEvent.event+' · '+ago(lastEvent.timestamp):'—'}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ── Helpers ──
