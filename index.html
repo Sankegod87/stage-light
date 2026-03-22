@@ -730,7 +730,11 @@ window.addEventListener('syncStatus', e => {
   setSyncState(state, msg);
   if (state === 'ok') updSyncTime();
   if (state === 'local') {
+    // Firebase not configured — seed demo data and render now
     document.getElementById('cfgNotice').style.display = '';
+    seed();
+    loadTech();
+    go('dashboard');
   }
 });
 
@@ -1228,9 +1232,10 @@ function toast(msg, type='info') {
 // BOOT
 // ══════════════════════════════════════════════════
 lload();
-seed();
 loadTech();
-go('dashboard');
+go('dashboard'); // render immediately from local cache while Firebase connects
+// Firebase listener will call _onRemoteData once connected, which re-renders
+// Local mode syncStatus event will call seed()+render if no Firebase config
 </script>
 </body>
 </html>
