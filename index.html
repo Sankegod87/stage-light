@@ -422,6 +422,7 @@ select option { background: var(--s2); }
     <h2 class="fw9 tu ls2" style="font-size:14px">Bulb Inventory</h2>
     <div class="row gap8">
       <button class="btn bgh" onclick="printLabels()">🖨️ Print Labels</button>
+      <button class="btn br bsm" onclick="clearAllInventory()">🗑️ Clear All</button>
       <button class="btn ba"  onclick="openM('receiveBulbs')">+ Receive Batch</button>
     </div>
   </div>
@@ -431,7 +432,7 @@ select option { background: var(--s2); }
     <button class="tab" onclick="invTab('usage',this)">Usage Log</button>
   </div>
   <div id="it-stock"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
-    <thead><tr><th>Bulb Type</th><th>In Stock</th><th>Threshold</th><th>Received</th><th>Used</th><th>Status</th></tr></thead>
+    <thead><tr><th>Bulb Type</th><th>In Stock</th><th>Threshold</th><th>Received</th><th>Used</th><th>Status</th><th></th></tr></thead>
     <tbody id="stockTbl"></tbody>
   </table></div></div></div>
   <div id="it-orders" style="display:none"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
@@ -829,8 +830,19 @@ function renderFix() {
         <td><div class="row gap6">
           <button class="btn br bsm" onclick="openOutModal('${f.id}')">🔴 Outage</button>
           ${f.status==='out'?`<button class="btn bg bsm" onclick="openRepModal('${f.id}')">✅ Replaced</button>`:''}
+          <button class="btn bgh bsm" onclick="deleteFixture('${f.id}')" title="Delete">🗑️</button>
         </div></td>
       </tr>`).join('');
+}
+
+function deleteFixture(id) {
+  const f = db.fixtures.find(x=>x.id===id);
+  if (!f) return;
+  if (!confirm('Delete fixture "'+f.name+'" ('+f.id+')?\n\nThis will also remove all its outage history.')) return;
+  db.fixtures = db.fixtures.filter(x=>x.id!==id);
+  db.outages  = db.outages.filter(o=>o.fixtureId!==id);
+  save(); renderFix();
+  toast('Fixture '+id+' deleted','info');
 }
 
 // ══════════════════════════════════════════════════
@@ -844,6 +856,7 @@ function renderInv() {
         <td><strong style="font-size:18px;color:${low?'var(--red)':'var(--green)'}">${i.inStock}</strong></td>
         <td>${i.threshold}</td><td>${i.totalReceived}</td><td>${i.totalUsed}</td>
         <td>${low?'<span class="badge blow"><span class="bd pulse"></span>LOW</span>':'<span class="badge bok"><span class="bd"></span>OK</span>'}</td>
+        <td><button class="btn bgh bsm" onclick="deleteInvRow('${i.bulbType.replace(/'/g,"\\'")}')" title="Delete">🗑️</button></td>
       </tr>`;}).join('');
 
   document.getElementById('ordersTbl').innerHTML = !db.orders.length
@@ -859,6 +872,23 @@ function renderInv() {
         <td class="dim">${fmtD(u.date)}</td><td>${u.bulbType}</td><td><strong>${u.qty}</strong></td>
         <td class="mono">${u.fixture}</td><td>${u.tech||'—'}</td>
       </tr>`).join('');
+}
+
+function deleteInvRow(bulbType) {
+  if (!confirm('Remove "'+bulbType+'" from inventory?\n\nThis removes the stock entry but keeps usage history.')) return;
+  db.inventory = db.inventory.filter(i=>i.bulbType!==bulbType);
+  db.orders    = db.orders.filter(o=>o.bulbType!==bulbType);
+  save(); renderInv();
+  toast(bulbType+' removed from inventory','info');
+}
+
+function clearAllInventory() {
+  if (!confirm('Clear ALL inventory, orders, and usage history?\n\nThis cannot be undone.')) return;
+  db.inventory = [];
+  db.orders    = [];
+  db.usageLog  = [];
+  save(); renderInv();
+  toast('Inventory cleared','info');
 }
 
 // ══════════════════════════════════════════════════
