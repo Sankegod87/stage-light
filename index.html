@@ -851,7 +851,7 @@ textarea{resize:vertical;min-height:70px;}
         <!-- Bulb condition (auto-set after scan, can be overridden) -->
         <div class="fg">
           <label>Bulb Condition</label>
-          <select id="rbulbcond">
+          <select id="rbulbcond" onchange="onConditionChange(this.value)">
             <option value="new">✅ New</option>
             <option value="blown">💀 Blown</option>
           </select>
@@ -1230,8 +1230,17 @@ function editUsedBulbCond(id){
   const opts=['new','blown'];
   const cur=opts.indexOf(b.condition);
   const nxt=opts[(cur+1)%opts.length];
-  b.condition=nxt;save();renderUsedBulbs();
-  toast('Condition updated to: '+nxt,'info');
+  b.condition=nxt;
+  // If marking as blown, also flag in registry so future scans hard-block
+  if(nxt==='blown'&&b.bulbId){
+    const reg=db.bulbRegistry.find(r=>r.bulbId===b.bulbId);
+    if(reg){
+      reg.status='disposed';
+      reg.history.push({event:'marked_blown',fixture:b.pulledFrom||'',tech:'manual',timestamp:Date.now()});
+    }
+  }
+  save();renderUsedBulbs();renderBulbRegistry&&renderBulbRegistry();
+  toast('Condition updated to: '+nxt+(nxt==='blown'?' — permanently blocked in registry':''),'info');
 }
 
 function deleteInvRow(t){
@@ -1728,9 +1737,11 @@ function onBulbIdInput(code){
       banner.style.display='';
       banner.style.background='var(--rglow)';
       banner.style.border='1px solid rgba(224,60,60,.4)';
-      banner.innerHTML=`<div style="color:var(--red);font-weight:700">🚫 BLOCKED — Bulb Marked as Disposed</div>
-        <div class="dim" style="margin-top:4px">Bulb <strong>${code}</strong> (${reg.bulbType}) was disposed of and cannot be used.</div>
-        <button class="btn br bsm" style="margin-top:8px" onclick="forceRegistryOverride('${reg.bulbId}')">Override</button>`;
+      banner.innerHTML=`<div style="color:var(--red);font-size:15px;font-weight:900">🚫 HARD BLOCK — Bulb Disposed</div>
+        <div style="margin-top:8px;background:rgba(224,60,60,.1);border-radius:6px;padding:10px">
+          <div class="dim">Bulb <strong>${code}</strong> (${reg.bulbType}) has been disposed of.</div>
+        </div>
+        <div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:700">❌ This bulb cannot be used. Scan a different bulb.</div>`;
       document.getElementById('rbulbcond').value='blown';
       document.getElementById('rdeduct').checked=false;
       return;
@@ -1773,11 +1784,12 @@ function onBulbIdInput(code){
     if(usedMatch.condition==='blown'){
       // Block — blown bulb
       bg='var(--rglow)';border='rgba(224,60,60,.4)';
-      html=`<div style="color:var(--red);font-size:14px;font-weight:700">🚫 BLOCKED — This bulb is blown!</div>
-            <div class="dim" style="margin-top:4px">Bulb ID: <strong>${usedMatch.bulbId}</strong> · Type: ${usedMatch.bulbType}</div>
-            <div class="dim">Pulled from: ${usedMatch.fixtureName||usedMatch.pulledFrom} · ${timePulled}</div>
-            <div style="font-size:11px;color:var(--red);margin-top:6px">This bulb is marked as blown. Please use a different bulb.</div>
-            <button class="btn br bsm" style="margin-top:8px" onclick="forceUsedBulb('${usedMatch.id}')">Use Anyway (override)</button>`;
+      html=`<div style="color:var(--red);font-size:15px;font-weight:900">🚫 HARD BLOCK — This Bulb is Blown!</div>
+            <div style="margin-top:8px;background:rgba(224,60,60,.1);border-radius:6px;padding:10px">
+              <div class="dim">Bulb ID: <strong>${usedMatch.bulbId}</strong> · Type: ${usedMatch.bulbType}</div>
+              <div class="dim">Pulled from: ${usedMatch.fixtureName||usedMatch.pulledFrom} · ${timePulled}</div>
+            </div>
+            <div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:700">❌ This bulb cannot be used. Scan a different bulb.</div>`;
       document.getElementById('rbulbcond').value='blown';
       document.getElementById('rdeduct').checked=false;
     } else if(!typeMatch){
@@ -1839,6 +1851,21 @@ function onBulbIdInput(code){
 let _forcedUsedBulbId=null;
 let _forcedRegistryBulbId=null;
 
+function onConditionChange(val){
+  if(val==='blown'){
+    const banner=document.getElementById('repMatchBanner');
+    banner.style.display='';
+    banner.style.background='var(--rglow)';
+    banner.style.border='1px solid rgba(224,60,60,.5)';
+    banner.innerHTML=`<div style="color:var(--red);font-size:15px;font-weight:900">🚫 HARD BLOCK — Blown Selected</div>
+      <div style="font-size:12px;color:var(--red);margin-top:8px">You cannot confirm a replacement with a blown bulb. Change to ✅ New or scan a different bulb.</div>`;
+  } else {
+    const code=document.getElementById('rbulbid').value.trim().toUpperCase();
+    if(code) onBulbIdInput(code);
+    else document.getElementById('repMatchBanner').style.display='none';
+  }
+}
+
 function forceRegistryOverride(bulbId){
   _forcedRegistryBulbId=bulbId;
   const reg=db.bulbRegistry.find(b=>b.bulbId===bulbId);
@@ -1867,6 +1894,22 @@ function forceUsedBulb(usedBulbId){
 function submitReplaced(){
   const f=db.fixtures.find(x=>x.id===_curFix);if(!f)return;
   const t=getTech('replace');if(!t){toast('Select a technician first','error');return;}
+  // Hard block if blown condition selected
+  const condCheck=document.getElementById('rbulbcond').value;
+  if(condCheck==='blown'){
+    const banner=document.getElementById('repMatchBanner');
+    banner.style.display='';
+    banner.style.background='var(--rglow)';
+    banner.style.border='1px solid rgba(224,60,60,.5)';
+    banner.innerHTML=`<div style="color:var(--red);font-size:15px;font-weight:900">🚫 HARD BLOCK — Blown Bulb Selected!</div>
+      <div style="margin-top:8px;background:rgba(224,60,60,.1);border-radius:6px;padding:10px">
+        <div class="dim">You have selected <strong>💀 Blown</strong> as the bulb condition.</div>
+        <div class="dim" style="margin-top:4px">A blown bulb cannot be installed. Change the condition to ✅ New or scan a different bulb.</div>
+      </div>
+      <div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:700">❌ Cannot confirm — please use a working bulb.</div>`;
+    toast('🚫 Cannot install a blown bulb!','error');
+    return;
+  }
   const out=[...db.outages].filter(o=>o.fixtureId===f.id&&!o.resolved).sort((a,b)=>b.timestamp-a.timestamp)[0];
   if(out){out.resolved=true;out.resolvedAt=Date.now();out.resolvedBy=t.name;out.resolvedTechId=t.id;}
   f.status='ok';
@@ -1909,7 +1952,17 @@ function submitReplaced(){
     const scannedInv=bulbId?db.inventory.find(i=>i.bulbType.toUpperCase()===bulbId):null;
     const mismatch=scannedInv&&scannedInv.bulbType.toUpperCase()!==f.bulbType.toUpperCase();
     db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id,bulbId,bulbCondition:bulbCond,mismatch:mismatch||false,scannedBulbType:scannedInv?scannedInv.bulbType:null});
-    if(bulbCond==='blown') toast('⚠️ Blown bulb logged — fixture may not be fixed!','error');
+    if(bulbCond==='blown'){
+      // Permanently mark this bulb as blown in the registry
+      if(scannedBulbId){
+        const blownReg=db.bulbRegistry.find(b=>b.bulbId===scannedBulbId);
+        if(blownReg){
+          blownReg.status='disposed';
+          blownReg.history.push({event:'marked_blown',fixture:f.id,tech:t.name,timestamp:Date.now()});
+        }
+      }
+      toast('💀 Blown bulb permanently flagged in registry','error');
+    }
     // no reused condition any more
     if(mismatch) toast('⚠️ Mismatch logged: '+scannedInv.bulbType+' used in '+f.bulbType+' fixture','info');
     if(inv&&inv.inStock<=inv.threshold){
