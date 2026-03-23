@@ -852,9 +852,8 @@ textarea{resize:vertical;min-height:70px;}
         <div class="fg">
           <label>Bulb Condition</label>
           <select id="rbulbcond">
-            <option value="new">✅ New bulb from stock</option>
-            <option value="reused">♻️ Reused / previously used</option>
-            <option value="blown">💀 Already blown (test/confirm)</option>
+            <option value="new">✅ New</option>
+            <option value="blown">💀 Blown</option>
           </select>
         </div>
       </div>
@@ -897,10 +896,8 @@ textarea{resize:vertical;min-height:70px;}
         </div>
         <div class="fg"><label>Condition</label>
           <select id="aub-cond">
-            <option value="unknown">❓ Unknown — needs testing</option>
-            <option value="good">✅ Good — tested working</option>
-            <option value="blown">💀 Blown / dead</option>
-            <option value="partial">⚠️ Partial — dim or flickering</option>
+            <option value="new">✅ New</option>
+            <option value="blown">💀 Blown</option>
           </select>
         </div>
         <div class="fg" style="grid-column:1/-1"><label>Notes</label><input id="aub-notes" placeholder="Optional notes"></div>
@@ -1153,9 +1150,9 @@ function renderInv(){
   document.getElementById('usageTbl').innerHTML=!db.usageLog.length
     ?'<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:28px">No usage logged yet</td></tr>'
     :[...db.usageLog].sort((a,b)=>b.date-a.date).map(u=>{
-      const condIcon=u.bulbCondition==='blown'?'💀 Blown':u.bulbCondition==='reused'?'♻️ Reused':'✅ New';
+      const condIcon=u.bulbCondition==='blown'?'💀 Blown':'✅ New';
       const mismatchTag=u.mismatch?'<span style="color:var(--amber);font-size:10px;display:block">⚠️ type mismatch</span>':'';
-      const condCol=u.bulbCondition==='blown'?'var(--red)':u.bulbCondition==='reused'?'var(--amber)':'var(--green)';
+      const condCol=u.bulbCondition==='blown'?'var(--red)':'var(--green)';
       return`<tr>
         <td class="dim">${fmtD(u.date)}</td><td>${u.bulbType}</td><td><strong>${u.qty}</strong></td>
         <td class="mono">${u.fixture}</td><td>${u.tech||'—'}</td>
@@ -1206,7 +1203,7 @@ function renderUsedBulbs(){
   const tbody=document.getElementById('usedBulbsTbl');if(!tbody)return;
   const list=[...db.usedBulbs].sort((a,b)=>b.datePulled-a.datePulled);
   if(!list.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:28px">No used bulbs logged yet</td></tr>';return;}
-  const condLabel={unknown:'❓ Unknown',good:'✅ Good',blown:'💀 Blown',partial:'⚠️ Partial'};
+  const condLabel={new:'✅ New',blown:'💀 Blown'};
   const statusColor={available:'var(--amber)',reinstalled:'var(--blue)',disposed:'var(--dim)'};
   tbody.innerHTML=list.map(b=>`<tr>
     <td class="mono" style="font-size:11px">${b.bulbId||'<span class="dim">unlabelled</span>'}</td>
@@ -1230,7 +1227,7 @@ function setUsedBulbStatus(id,status){
 }
 function editUsedBulbCond(id){
   const b=db.usedBulbs.find(x=>x.id===id);if(!b)return;
-  const opts=['unknown','good','blown','partial'];
+  const opts=['new','blown'];
   const cur=opts.indexOf(b.condition);
   const nxt=opts[(cur+1)%opts.length];
   b.condition=nxt;save();renderUsedBulbs();
@@ -1652,7 +1649,7 @@ function submitOutage(){
     pulledFrom:f.id,
     fixtureName:f.name,
     datePulled:Date.now(),
-    condition:'unknown',
+    condition:'new',
     status:'available',      // available | reinstalled | disposed
     notes:'Auto-logged when '+f.name+' reported out by '+t.name,
     autoLogged:true
@@ -1723,7 +1720,7 @@ function onBulbIdInput(code){
           <button class="btn br bsm" onclick="forceRegistryOverride('${reg.bulbId}')">⚠️ Override — Bulb Was Removed</button>
           <button class="btn bgh bsm" onclick="document.getElementById('rbulbid').value='';onBulbIdInput('')">✕ Use Different Bulb</button>
         </div>`;
-      document.getElementById('rbulbcond').value='reused';
+      document.getElementById('rbulbcond').value='new';
       document.getElementById('rdeduct').checked=false;
       return;
     }
@@ -1760,7 +1757,7 @@ function onBulbIdInput(code){
         banner.innerHTML=`<div style="color:var(--amber);font-weight:700">⚠️ Registered Bulb — Type Mismatch</div>
           <div class="dim" style="margin-top:4px">Scanned: <strong>${reg.bulbType}</strong> · Fixture needs: <strong>${f.bulbType}</strong></div>
           <div style="font-size:11px;color:var(--amber);margin-top:4px">Mismatch will be logged. You can still proceed.</div>`;
-        document.getElementById('rbulbcond').value='reused';
+        document.getElementById('rbulbcond').value='new';
         return;
       }
     }
@@ -1770,7 +1767,7 @@ function onBulbIdInput(code){
   const usedMatch=db.usedBulbs.find(b=>b.bulbId&&b.bulbId.toUpperCase()===code&&b.status==='available');
   if(usedMatch){
     const typeMatch=usedMatch.bulbType.toUpperCase()===f.bulbType.toUpperCase();
-    const condLabel={unknown:'❓ Unknown',good:'✅ Tested working',blown:'💀 Blown / dead',partial:'⚠️ Partial'}[usedMatch.condition]||usedMatch.condition;
+    const condLabel={new:'✅ New',blown:'💀 Blown'}[usedMatch.condition]||usedMatch.condition;
     const timePulled=usedMatch.datePulled?ago(usedMatch.datePulled):'unknown date';
     let bg,border,html;
     if(usedMatch.condition==='blown'){
@@ -1791,7 +1788,7 @@ function onBulbIdInput(code){
             <div class="dim">Condition: ${condLabel} · Pulled ${timePulled} from ${usedMatch.fixtureName||usedMatch.pulledFrom}</div>
             <div style="font-size:11px;color:var(--amber);margin-top:6px">Wrong bulb type — mismatch will be logged.</div>
             <button class="btn ba bsm" style="margin-top:8px" onclick="forceUsedBulb('${usedMatch.id}')">Proceed Anyway</button>`;
-      document.getElementById('rbulbcond').value='reused';
+      document.getElementById('rbulbcond').value='new';
     } else {
       // Used bulb, correct type — warn but allow
       bg='var(--aglow)';border='rgba(240,165,0,.3)';
@@ -1803,7 +1800,7 @@ function onBulbIdInput(code){
               <button class="btn bg bsm" onclick="forceUsedBulb('${usedMatch.id}')">✅ Use This Bulb</button>
               <button class="btn bgh bsm" onclick="document.getElementById('rbulbid').value='';onBulbIdInput('')">✕ Cancel</button>
             </div>`;
-      document.getElementById('rbulbcond').value='reused';
+      document.getElementById('rbulbcond').value='new';
       document.getElementById('rdeduct').checked=false; // don't deduct from stock — it's already used
     }
     banner.style.display='';banner.style.background=bg;banner.style.border='1px solid '+border;banner.innerHTML=html;
@@ -1833,7 +1830,7 @@ function onBulbIdInput(code){
     html=`<div style="color:var(--amber)">⚠️ Type mismatch — new stock</div>
           <div class="dim" style="margin-top:4px">Scanned: <strong>${inv.bulbType}</strong> · Fixture needs: <strong>${f.bulbType}</strong></div>
           <div style="font-size:11px;color:var(--amber);margin-top:4px">Logged as mismatch — you can still proceed</div>`;
-    document.getElementById('rbulbcond').value='reused';
+    document.getElementById('rbulbcond').value='new';
   }
   banner.style.display='';banner.style.background=bg;banner.style.border='1px solid '+border;banner.innerHTML=html;
 }
@@ -1851,7 +1848,7 @@ function forceRegistryOverride(bulbId){
   banner.style.border='1px solid rgba(240,165,0,.3)';
   banner.innerHTML=`<div style="color:var(--amber);font-weight:700">⚠️ Override accepted</div>
     <div class="dim" style="margin-top:4px">Bulb <strong>${bulbId}</strong> will be recorded as reinstalled. Previous location cleared.</div>`;
-  document.getElementById('rbulbcond').value='reused';
+  document.getElementById('rbulbcond').value='new';
   document.getElementById('rdeduct').checked=false;
 }
 function forceUsedBulb(usedBulbId){
@@ -1863,7 +1860,7 @@ function forceUsedBulb(usedBulbId){
   banner.style.border='1px solid rgba(40,201,122,.3)';
   banner.innerHTML=`<div style="color:var(--green)">✅ Used bulb accepted</div>
     <div class="dim" style="margin-top:4px">ID: ${ub.bulbId||'unlabelled'} · Type: ${ub.bulbType} · Will be marked as reinstalled</div>`;
-  document.getElementById('rbulbcond').value='reused';
+  document.getElementById('rbulbcond').value='new';
   document.getElementById('rdeduct').checked=false;
 }
 
@@ -1913,7 +1910,7 @@ function submitReplaced(){
     const mismatch=scannedInv&&scannedInv.bulbType.toUpperCase()!==f.bulbType.toUpperCase();
     db.usageLog.push({date:Date.now(),bulbType:f.bulbType,qty:1,fixture:f.id,tech:t.name,techId:t.id,bulbId,bulbCondition:bulbCond,mismatch:mismatch||false,scannedBulbType:scannedInv?scannedInv.bulbType:null});
     if(bulbCond==='blown') toast('⚠️ Blown bulb logged — fixture may not be fixed!','error');
-    if(bulbCond==='reused') toast('♻️ Reused bulb logged','info');
+    // no reused condition any more
     if(mismatch) toast('⚠️ Mismatch logged: '+scannedInv.bulbType+' used in '+f.bulbType+' fixture','info');
     if(inv&&inv.inStock<=inv.threshold){
       sendLowStockAlerts(f.bulbType,inv.inStock,inv.threshold,t.name);
