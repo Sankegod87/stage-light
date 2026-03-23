@@ -1104,16 +1104,18 @@ function viewFixture(id){
       if(!reg)return'<div style="background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px"><div class="dim" style="letter-spacing:1px;margin-bottom:6px">CURRENT BULB</div><div class="dim">No bulb scan on record — install a bulb and scan it to track it here.</div></div>';
       const installs=reg.history.filter(h=>h.event==='installed').length;
       const typeMatch=reg.bulbType.toUpperCase()===f.bulbType.toUpperCase();
-      return\`<div style="background:\${typeMatch?'var(--gglow)':'var(--aglow)'};border:1px solid \${typeMatch?'rgba(40,201,122,.3)':'rgba(240,165,0,.3)'};border-radius:6px;padding:12px;margin-bottom:14px">
-        <div class="dim" style="letter-spacing:1px;margin-bottom:8px">CURRENT BULB INSTALLED</div>
-        <div class="row gap8" style="flex-wrap:wrap">
-          <div><div class="dim" style="font-size:9px;margin-bottom:2px">BULB ID</div><div class="mono fw7" style="color:var(--amber)">\${reg.bulbId}</div></div>
-          <div><div class="dim" style="font-size:9px;margin-bottom:2px">TYPE</div><div class="fw7">\${reg.bulbType} \${typeMatch?'<span style=\"color:var(--green);font-size:11px\">✓</span>':'<span style=\"color:var(--amber);font-size:11px\">⚠️ mismatch</span>'}</div></div>
-          <div><div class="dim" style="font-size:9px;margin-bottom:2px">INSTALLED</div><div class="fw7">\${ago(reg.installedAt)}</div></div>
-          <div><div class="dim" style="font-size:9px;margin-bottom:2px">BY</div><div class="fw7">\${reg.installedBy||'—'}</div></div>
-          <div><div class="dim" style="font-size:9px;margin-bottom:2px">TIMES INSTALLED</div><div class="fw7">\${installs}</div></div>
-        </div>
-      </div>\`;
+      const bg=typeMatch?'var(--gglow)':'var(--aglow)';
+      const bdr=typeMatch?'rgba(40,201,122,.3)':'rgba(240,165,0,.3)';
+      const typeTag=typeMatch?'<span style="color:var(--green);font-size:11px">✓</span>':'<span style="color:var(--amber);font-size:11px">⚠️ mismatch</span>';
+      return '<div style="background:'+bg+';border:1px solid '+bdr+';border-radius:6px;padding:12px;margin-bottom:14px">'
+        +'<div class="dim" style="letter-spacing:1px;margin-bottom:8px">CURRENT BULB INSTALLED</div>'
+        +'<div class="row gap8" style="flex-wrap:wrap">'
+        +'<div><div class="dim" style="font-size:9px;margin-bottom:2px">BULB ID</div><div class="mono fw7" style="color:var(--amber)">'+reg.bulbId+'</div></div>'
+        +'<div><div class="dim" style="font-size:9px;margin-bottom:2px">TYPE</div><div class="fw7">'+reg.bulbType+' '+typeTag+'</div></div>'
+        +'<div><div class="dim" style="font-size:9px;margin-bottom:2px">INSTALLED</div><div class="fw7">'+ago(reg.installedAt)+'</div></div>'
+        +'<div><div class="dim" style="font-size:9px;margin-bottom:2px">BY</div><div class="fw7">'+(reg.installedBy||'—')+'</div></div>'
+        +'<div><div class="dim" style="font-size:9px;margin-bottom:2px">TIMES INSTALLED</div><div class="fw7">'+installs+'</div></div>'
+        +'</div></div>';
     })()}
     ${f.notes?`<div class="note-box mb14">📝 ${f.notes}</div>`:''}
     <div class="ph" style="border-radius:6px 6px 0 0;margin-bottom:0"><span class="pt">Outage History</span></div>
