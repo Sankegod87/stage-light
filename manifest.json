@@ -2,9 +2,10 @@
   "name": "Stage Light Tracker",
   "short_name": "SL Tracker",
   "description": "Stage lighting and crew schedule management",
-  "start_url": "/stage-light-tracker/",
-  "scope": "/stage-light-tracker/",
+  "start_url": "/stage-light/",
+  "scope": "/stage-light/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#080b10",
   "theme_color": "#f0a500",
   "icons": [
