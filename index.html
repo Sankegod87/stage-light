@@ -2236,11 +2236,11 @@ function submitOutage(){
   // Send outage alert email + push notification
   sendOutageAlerts(f.name,f.id,f.bulbType,t.name);
   sendNotif('🔴 Fixture Out: '+f.name,'Reported by '+t.name+' — '+f.id);
-  // Update registry — mark any installed bulb for this fixture as pulled
+  // Update registry — mark installed bulb as blown/disposed when outage reported
   const pulledReg=db.bulbRegistry.find(b=>b.installedIn===f.id&&b.status==='installed');
   if(pulledReg){
-    pulledReg.history.push({event:'pulled',fixture:f.id,fixtureName:f.name,tech:t.name,timestamp:Date.now()});
-    pulledReg.status='pulled';
+    pulledReg.history.push({event:'blown',fixture:f.id,fixtureName:f.name,tech:t.name,timestamp:Date.now()});
+    pulledReg.status='disposed';
     pulledReg.installedIn=null;
   }
 
@@ -2312,17 +2312,14 @@ function onBulbIdInput(code){
       banner.style.background='var(--rglow)';
       banner.style.border='1px solid rgba(224,60,60,.5)';
       banner.innerHTML=`
-        <div style="color:var(--red);font-size:15px;font-weight:900">🚫 BLOCKED — Bulb Already Installed!</div>
+        <div style="color:var(--red);font-size:15px;font-weight:900">🚫 HARD BLOCK — Bulb Currently In Use!</div>
         <div style="margin-top:8px;background:rgba(224,60,60,.1);border-radius:6px;padding:10px">
           <div style="font-family:var(--mono);font-size:11px;color:var(--text)">Bulb <strong>${code}</strong> is currently installed in:</div>
           <div style="font-size:16px;font-weight:700;color:var(--red);margin-top:4px">${fixName} (${reg.installedIn})</div>
           <div class="dim" style="margin-top:2px">Installed ${reg.installedAt?ago(reg.installedAt):'unknown'} by ${reg.installedBy||'unknown'}</div>
         </div>
-        <div style="font-size:11px;color:var(--dim2);margin-top:8px">Scan a different bulb, or confirm below if this bulb was physically removed.</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn br bsm" onclick="forceRegistryOverride('${reg.bulbId}')">⚠️ Override — Bulb Was Removed</button>
-          <button class="btn bgh bsm" onclick="document.getElementById('rbulbid').value='';onBulbIdInput('')">✕ Use Different Bulb</button>
-        </div>`;
+        <div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:700">❌ This bulb is in use. Scan a different bulb.</div>
+        <button class="btn bgh bsm" style="margin-top:8px" onclick="document.getElementById('rbulbid').value='';onBulbIdInput('')">✕ Scan Different Bulb</button>`;
       document.getElementById('rbulbcond').value='new';
       document.getElementById('rdeduct').checked=false;
       return;
@@ -2443,7 +2440,6 @@ function onBulbIdInput(code){
 
 // Called when technician overrides a used bulb warning
 let _forcedUsedBulbId=null;
-let _forcedRegistryBulbId=null;
 
 function onConditionChange(val){
   if(val==='blown'){
@@ -2460,18 +2456,7 @@ function onConditionChange(val){
   }
 }
 
-function forceRegistryOverride(bulbId){
-  _forcedRegistryBulbId=bulbId;
-  const reg=db.bulbRegistry.find(b=>b.bulbId===bulbId);
-  if(!reg)return;
-  const banner=document.getElementById('repMatchBanner');
-  banner.style.background='var(--aglow)';
-  banner.style.border='1px solid rgba(240,165,0,.3)';
-  banner.innerHTML=`<div style="color:var(--amber);font-weight:700">⚠️ Override accepted</div>
-    <div class="dim" style="margin-top:4px">Bulb <strong>${bulbId}</strong> will be recorded as reinstalled. Previous location cleared.</div>`;
-  document.getElementById('rbulbcond').value='new';
-  document.getElementById('rdeduct').checked=false;
-}
+// forceRegistryOverride removed — installed and blown bulbs are hard locked
 function forceUsedBulb(usedBulbId){
   _forcedUsedBulbId=usedBulbId;
   const ub=db.usedBulbs.find(b=>b.id===usedBulbId);
@@ -2528,17 +2513,12 @@ function submitReplaced(){
       reg={bulbId:scannedBulbId,bulbType:f.bulbType,status:'in_stock',createdAt:Date.now(),installedIn:null,installedAt:null,installedBy:null,history:[]};
       db.bulbRegistry.push(reg);
     }
-    // If overriding an already-installed bulb, log the forced removal
-    if(_forcedRegistryBulbId===scannedBulbId&&reg.installedIn){
-      reg.history.push({event:'force_removed',fixture:reg.installedIn,tech:t.name,timestamp:Date.now()});
-    }
     // Update registry to installed
     reg.history.push({event:'installed',fixture:f.id,fixtureName:f.name,tech:t.name,timestamp:Date.now()});
     reg.status='installed';
     reg.installedIn=f.id;
     reg.installedAt=Date.now();
     reg.installedBy=t.name;
-    _forcedRegistryBulbId=null;
     // Store on fixture for quick lookup
     f.currentBulbId=scannedBulbId;
     f.currentBulbType=reg.bulbType;
@@ -2910,8 +2890,8 @@ function renderBulbRegistry(){
   const statusStyle={
     in_stock:{icon:'📦',color:'var(--blue)',label:'In Stock'},
     installed:{icon:'💡',color:'var(--green)',label:'Installed'},
-    pulled:{icon:'♻️',color:'var(--amber)',label:'Pulled'},
-    disposed:{icon:'🗑️',color:'var(--dim)',label:'Disposed'}
+    pulled:{icon:'♻️',color:'var(--amber)',label:'Available (Pulled)'},
+    disposed:{icon:'💀',color:'var(--red)',label:'Blown / Disposed'}
   };
   tbody.innerHTML=list.map(b=>{
     const ss=statusStyle[b.status]||{icon:'❓',color:'var(--dim)',label:b.status};
