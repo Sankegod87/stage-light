@@ -455,7 +455,7 @@ textarea{resize:vertical;min-height:70px;}
   </div>
   <div class="panel"><div class="pb" style="padding:0">
     <table class="tbl"><thead><tr>
-      <th>ID</th><th>Name / Location</th><th class="mhide">Bulb Type</th><th class="mhide">Category</th><th>Status</th><th class="mhide">Last Outage</th><th class="mhide">Outages</th><th>Actions</th>
+      <th>ID</th><th>Name / Location</th><th class="mhide">Bulb Type</th><th class="mhide">Category</th><th>Status</th><th>Current Bulb</th><th class="mhide">Last Outage</th><th class="mhide">Outages</th><th>Actions</th>
     </tr></thead><tbody id="fixtTbl"></tbody></table>
   </div></div>
 </div>
@@ -1066,6 +1066,13 @@ function renderFix(){
         <td><span class="badge bblue">${f.category||'other'}</span></td>
         <td>${f.status==='ok'?'<span class="badge bok"><span class="bd"></span>OK</span>':'<span class="badge bout"><span class="bd pulse"></span>OUT</span>'}
             ${maintDueIds.has(f.id)?'<span class="maint-badge" style="margin-left:4px">MAINT</span>':''}</td>
+        <td>${(()=>{
+          const reg=db.bulbRegistry.find(b=>b.installedIn===f.id&&b.status==='installed');
+          if(!reg&&f.currentBulbId){const r2=db.bulbRegistry.find(b=>b.bulbId===f.currentBulbId);
+            if(r2)return`<span class="mono ca" style="font-size:11px">${r2.bulbId}</span><div class="dim" style="font-size:10px">${r2.status==='installed'?'💡 In service':r2.status}</div>`;}
+          if(!reg)return'<span class="dim" style="font-size:11px">—</span>';
+          return`<span class="mono ca" style="font-size:11px">${reg.bulbId}</span><div class="dim" style="font-size:10px">💡 Since ${ago(reg.installedAt)}</div>`;
+        })()}</td>
         <td class="dim">${lastOut[f.id]?ago(lastOut[f.id]):'Never'}</td>
         <td style="text-align:center"><strong>${db.outages.filter(o=>o.fixtureId===f.id).length}</strong></td>
         <td><div class="row gap6">
@@ -1086,12 +1093,28 @@ function viewFixture(id){
   document.getElementById('vfBody').innerHTML=`
     <div class="grid2 mb14">
       <div><div class="dim mb8">LOCATION</div><div class="fw7">${f.location||'—'}</div></div>
-      <div><div class="dim mb8">BULB TYPE</div><div class="fw7">${f.bulbType}</div></div>
+      <div><div class="dim mb8">BULB TYPE REQUIRED</div><div class="fw7">${f.bulbType}</div></div>
       <div><div class="dim mb8">CATEGORY</div><span class="badge bblue">${f.category||'other'}</span></div>
       <div><div class="dim mb8">STATUS</div>${f.status==='ok'?'<span class="badge bok"><span class="bd"></span>OK</span>':'<span class="badge bout"><span class="bd pulse"></span>OUT</span>'}</div>
       <div><div class="dim mb8">TOTAL OUTAGES</div><div class="fw7" style="font-size:24px;color:var(--red)">${outs.length}</div></div>
       <div><div class="dim mb8">AVG DOWNTIME</div><div class="fw7">${avgDown?fmtDur(avgDown):'—'}</div></div>
     </div>
+    ${(()=>{
+      const reg=db.bulbRegistry.find(b=>b.installedIn===id&&b.status==='installed');
+      if(!reg)return'<div style="background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px"><div class="dim" style="letter-spacing:1px;margin-bottom:6px">CURRENT BULB</div><div class="dim">No bulb scan on record — install a bulb and scan it to track it here.</div></div>';
+      const installs=reg.history.filter(h=>h.event==='installed').length;
+      const typeMatch=reg.bulbType.toUpperCase()===f.bulbType.toUpperCase();
+      return\`<div style="background:\${typeMatch?'var(--gglow)':'var(--aglow)'};border:1px solid \${typeMatch?'rgba(40,201,122,.3)':'rgba(240,165,0,.3)'};border-radius:6px;padding:12px;margin-bottom:14px">
+        <div class="dim" style="letter-spacing:1px;margin-bottom:8px">CURRENT BULB INSTALLED</div>
+        <div class="row gap8" style="flex-wrap:wrap">
+          <div><div class="dim" style="font-size:9px;margin-bottom:2px">BULB ID</div><div class="mono fw7" style="color:var(--amber)">\${reg.bulbId}</div></div>
+          <div><div class="dim" style="font-size:9px;margin-bottom:2px">TYPE</div><div class="fw7">\${reg.bulbType} \${typeMatch?'<span style=\"color:var(--green);font-size:11px\">✓</span>':'<span style=\"color:var(--amber);font-size:11px\">⚠️ mismatch</span>'}</div></div>
+          <div><div class="dim" style="font-size:9px;margin-bottom:2px">INSTALLED</div><div class="fw7">\${ago(reg.installedAt)}</div></div>
+          <div><div class="dim" style="font-size:9px;margin-bottom:2px">BY</div><div class="fw7">\${reg.installedBy||'—'}</div></div>
+          <div><div class="dim" style="font-size:9px;margin-bottom:2px">TIMES INSTALLED</div><div class="fw7">\${installs}</div></div>
+        </div>
+      </div>\`;
+    })()}
     ${f.notes?`<div class="note-box mb14">📝 ${f.notes}</div>`:''}
     <div class="ph" style="border-radius:6px 6px 0 0;margin-bottom:0"><span class="pt">Outage History</span></div>
     <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;overflow:hidden">
@@ -1639,6 +1662,7 @@ function submitOutage(){
   const t=getTech('outage');if(!t){toast('Select a technician first','error');return;}
   db.outages.push({id:'OUT-'+Date.now(),fixtureId:f.id,fixtureName:f.name,bulbType:f.bulbType,reportedBy:t.name,techId:t.id,notes:document.getElementById('onotes').value.trim(),timestamp:Date.now(),resolved:false});
   f.status='out';f.outageCount=(f.outageCount||0)+1;
+  f.currentBulbId=null;f.currentBulbType=null;
   // Send outage alert email + push notification
   sendOutageAlerts(f.name,f.id,f.bulbType,t.name);
   sendNotif('🔴 Fixture Out: '+f.name,'Reported by '+t.name+' — '+f.id);
@@ -1945,6 +1969,10 @@ function submitReplaced(){
     reg.installedAt=Date.now();
     reg.installedBy=t.name;
     _forcedRegistryBulbId=null;
+    // Store on fixture for quick lookup
+    f.currentBulbId=scannedBulbId;
+    f.currentBulbType=reg.bulbType;
+    f.currentBulbInstalledAt=Date.now();
   }
 
   if(deduct){
