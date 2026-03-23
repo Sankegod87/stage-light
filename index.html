@@ -590,7 +590,6 @@ textarea{resize:vertical;min-height:70px;}
     <div class="panel"><div class="ph"><span class="pt">⚡ Recent Activity</span></div><div class="pb" id="recentAct"></div></div>
   </div>
   <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
-    <button class="btn bb bsm" onclick="sendWeeklyReport()">📧 Send Weekly Report</button>
     <button class="btn bgh bsm" onclick="exportCSV()">⬇️ Export CSV</button>
     <button class="btn bgh bsm" data-perm="master" onclick="requirePin(resetAllData)" style="border-color:var(--red);color:var(--red)">⚠️ Reset All Data</button>
   </div>
@@ -763,9 +762,7 @@ textarea{resize:vertical;min-height:70px;}
     </div>
     <div class="row gap8">
       <select id="schedYear" onchange="renderSchedule()" style="width:auto;padding:6px 10px;font-size:11px"></select>
-      <div id="schedEditBtns" style="display:none" class="row gap8">
-        <button class="btn ba" onclick="openM('editSchedule')">✏️ Edit Selected</button>
-      </div>
+      <button data-perm="admin" class="btn bb bsm" onclick="manualSendScheduleEmail()" title="Send schedule email to assigned crew for the upcoming Sunday">📧 Send This Week</button>
     </div>
   </div>
 
@@ -801,20 +798,7 @@ textarea{resize:vertical;min-height:70px;}
         <button class="btn bb" onclick="requestNotifPermission()">Enable Notifications</button>
       </div>
     </div>
-    <div class="panel">
-      <div class="ph"><span class="pt">📧 Weekly Email Report</span></div>
-      <div class="pb">
-        <p class="dim mb12">Automatically email the whole crew a weekly summary every Monday morning.</p>
-        <div class="fg mb12">
-          <label>Weekly Report Day</label>
-          <select id="reportDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option></select>
-        </div>
-        <div class="row gap8">
-          <button class="btn ba" onclick="saveReportSettings()">Save</button>
-          <button class="btn bgh" onclick="sendWeeklyReport()">Send Now (Test)</button>
-        </div>
-      </div>
-    </div>
+
     <div class="panel" id="claimMasterPanel">
       <div class="ph"><span class="pt">👑 Claim Master Admin</span></div>
       <div class="pb">
@@ -1193,7 +1177,7 @@ function lload(){
 window._onRemoteData=function(r){
   db.technicians=r.technicians||[];db.fixtures=r.fixtures||[];db.outages=r.outages||[];
   db.inventory=r.inventory||[];db.orders=r.orders||[];db.usageLog=r.usageLog||[];
-  db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];db.bulbRegistry=r.bulbRegistry||[];db.schedules=r.schedules||{};lsave();refreshPage();checkScheduledReport();checkScheduleEmails();
+  db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];db.bulbRegistry=r.bulbRegistry||[];db.schedules=r.schedules||{};lsave();refreshPage();checkScheduleEmails();
 };
 async function save(){
   lsave();
@@ -1855,7 +1839,6 @@ function renderSettings(){
       </div>`).join('') || '<p class="dim">No other crew members yet.</p>';
   }
   document.getElementById('maintInterval').value=s.maintInterval||90;
-  document.getElementById('reportDay').value=s.reportDay||1;
   const np=document.getElementById('notifStatus');
   if(!('Notification' in window)){np.innerHTML='<p class="dim">Notifications not supported in this browser.</p>';}
   else if(Notification.permission==='granted'){np.innerHTML='<span class="badge bok">✅ Notifications enabled</span>';}
@@ -1897,10 +1880,7 @@ function saveMaintSettings(){
   const v=parseInt(document.getElementById('maintInterval').value)||90;
   db.settings.maintInterval=v;save();toast('Maintenance interval saved','success');
 }
-function saveReportSettings(){
-  const d=parseInt(document.getElementById('reportDay').value)||1;
-  db.settings.reportDay=d;save();toast('Report schedule saved','success');
-}
+
 
 // ── PIN ──
 function requirePin(cb){
@@ -2584,37 +2564,24 @@ async function sendOutageAlerts(fixtureName,fixtureId,bulbType,techName){
   }
   toast('📧 Outage alert sent to '+recipients.length+' crew member'+(recipients.length>1?'s':''),'info');
 }
-async function sendWeeklyReport(){
-  // Weekly report goes to admins and master admin only
-  const recipients=db.technicians.filter(t=>t.email&&t.email.includes('@')&&(t.userRole==='admin'||t.userRole==='master'));
-  if(!recipients.length){toast('No crew emails set up','error');return;}
-  const week=db.outages.filter(o=>Date.now()-o.timestamp<7*86400000);
-  const resolved=week.filter(o=>o.resolved);
-  const activeOuts=db.outages.filter(o=>!o.resolved);
-  const lows=db.inventory.filter(i=>i.inStock<=i.threshold);
-  const summary=`WEEKLY REPORT\n\nOutages this week: ${week.length}\nResolved: ${resolved.length}\nCurrently out: ${activeOuts.length}\nLow stock items: ${lows.length}\n\nLow stock:\n${lows.map(i=>'• '+i.bulbType+': '+i.inStock+' left').join('\n')||'None'}\n\nActive outages:\n${activeOuts.map(o=>'• '+o.fixtureName+' ('+o.fixtureId+')').join('\n')||'None'}`;
-  for(const rec of recipients){
-    try{
-      await emailjs.send(EJSID,EJTPL,{
-        to_email: rec.email,
-        to_name:  rec.name,
-        subject:  '📊 Weekly Report — Stage Light Tracker',
-        message:  summary
-      });
-    }catch(e){console.warn('Email failed',e);}
+
+
+
+function manualSendScheduleEmail(){
+  if(!isAdmin()){ toast('Admin permission required','error'); return; }
+  // Find the upcoming Sunday
+  const now = new Date();
+  const daysUntilSun = (7 - now.getDay()) % 7 || 7;
+  const sun = new Date(now); sun.setDate(now.getDate() + daysUntilSun);
+  const key = sun.toISOString().slice(0,10);
+  const entry = db.schedules[key];
+  const dateStr = sun.toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  if(!entry || !entry.crew || !entry.crew.length){
+    toast('No crew scheduled for '+dateStr,'error');
+    return;
   }
-  toast('📧 Weekly report sent to '+recipients.length+' crew members','success');
-}
-function checkScheduledReport(){
-  const s=db.settings||{};
-  if(!s.reportDay)return;
-  const today=new Date().getDay();
-  const lastSent=localStorage.getItem('slt_last_report');
-  const todayStr=new Date().toDateString();
-  if(today===parseInt(s.reportDay)&&lastSent!==todayStr){
-    localStorage.setItem('slt_last_report',todayStr);
-    setTimeout(sendWeeklyReport,3000);
-  }
+  if(!confirm('Send schedule emails to '+entry.crew.length+' crew member'+(entry.crew.length>1?'s':'')+' for '+dateStr+'?')) return;
+  sendScheduleEmails(key, entry);
 }
 
 function checkScheduleEmails(){
