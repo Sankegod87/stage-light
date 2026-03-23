@@ -1311,7 +1311,7 @@ function showHomeScreen(){
   const now = new Date();
   const daysUntilSun = (7 - now.getDay()) % 7 || 7;
   const sun = new Date(now); sun.setDate(now.getDate() + daysUntilSun);
-  const key = sun.toISOString().slice(0,10);
+  const key = schedKey(sun);
   const entry = db.schedules[key];
   const sundayEl = document.getElementById('hs-sunday');
   const sundayContent = document.getElementById('hs-sunday-content');
@@ -2569,11 +2569,11 @@ async function sendOutageAlerts(fixtureName,fixtureId,bulbType,techName){
 
 function manualSendScheduleEmail(){
   if(!isAdmin()){ toast('Admin permission required','error'); return; }
-  // Find the upcoming Sunday
+  // Find the upcoming Sunday using local date
   const now = new Date();
   const daysUntilSun = (7 - now.getDay()) % 7 || 7;
   const sun = new Date(now); sun.setDate(now.getDate() + daysUntilSun);
-  const key = sun.toISOString().slice(0,10);
+  const key = schedKey(sun);
   const entry = db.schedules[key];
   const dateStr = sun.toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   if(!entry || !entry.crew || !entry.crew.length){
@@ -2596,7 +2596,7 @@ function checkScheduleEmails(){
   // Find the upcoming Sunday (3 days away)
   const sunday=new Date(today);
   sunday.setDate(sunday.getDate()+3);
-  const key=sunday.toISOString().slice(0,10);
+  const key=schedKey(sunday);
   const entry=db.schedules[key];
 
   if(!entry||!entry.crew||!entry.crew.length){
@@ -2893,8 +2893,11 @@ function getSundaysOfYear(year){
 }
 
 function schedKey(date){
-  // YYYY-MM-DD key
-  return date.toISOString().slice(0,10);
+  // YYYY-MM-DD key using LOCAL date to avoid UTC timezone shift
+  const y=date.getFullYear();
+  const m=String(date.getMonth()+1).padStart(2,'0');
+  const d=String(date.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+d;
 }
 
 function renderSchedule(){
