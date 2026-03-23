@@ -1,10 +1,10 @@
 const CACHE_NAME = 'slt-cache-v1';
 const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+  '/stage-light/',
+  '/stage-light/index.html',
+  '/stage-light/manifest.json',
+  '/stage-light/icon-192.png',
+  '/stage-light/icon-512.png'
 ];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
