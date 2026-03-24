@@ -341,6 +341,10 @@ textarea{resize:vertical;min-height:70px;}
 .ls-user-btn .ls-av { font-size:28px; }
 .ls-role-tag { font-size:9px; font-family:var(--mono); letter-spacing:1px; padding:1px 6px; border-radius:10px; margin-top:2px; }
 
+/* Checklist split layout — stack on mobile */
+@media(max-width:768px){
+  #checklistLayout { grid-template-columns:1fr !important; }
+}
 /* Schedule hover */
 #schedGrid [onclick]:hover {
   border-color: var(--amber) !important;
@@ -868,28 +872,34 @@ textarea{resize:vertical;min-height:70px;}
   <div class="row jbet mb14">
     <div>
       <h2 class="fw9 tu ls2" style="font-size:14px">Pre-Show Checklist</h2>
-      <div class="dim" style="margin-top:4px">Station-based checks before each show</div>
+      <div class="dim" style="margin-top:4px">Select a station to view and complete its checklist</div>
     </div>
     <div class="row gap8">
-      <button class="btn bgh bsm" data-perm="admin" onclick="openChecklistEditor()">⚙️ Customize</button>
       <button class="btn bgh bsm" onclick="resetChecklist()">↺ Reset All</button>
     </div>
   </div>
-  <!-- Station tabs -->
-  <div class="tabs" id="checklistTabs"></div>
-  <div id="checklistProgress" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
-    <div class="row jbet mb8">
-      <div class="fw7">Progress</div>
-      <div id="checklistCount" class="dim"></div>
+
+  <!-- Split layout: station list + checklist panel -->
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start" id="checklistLayout">
+
+    <!-- LEFT: Station selector -->
+    <div>
+      <div class="panel">
+        <div class="ph"><span class="pt">Stations</span></div>
+        <div id="clStationList" style="padding:8px"></div>
+      </div>
     </div>
-    <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden">
-      <div id="checklistBar" style="height:100%;background:var(--green);transition:width .3s;width:0%"></div>
+
+    <!-- RIGHT: Checklist for selected station -->
+    <div id="clMainPanel">
+      <div class="panel">
+        <div class="pb" style="text-align:center;padding:40px;color:var(--dim2)">
+          <div style="font-size:36px;margin-bottom:10px">👈</div>
+          <div>Select a station to start</div>
+        </div>
+      </div>
     </div>
   </div>
-  <!-- Fixture checklist -->
-  <div id="checklistFixtures" style="margin-bottom:14px"></div>
-  <!-- Custom task checklist -->
-  <div id="checklistTasks"></div>
 </div>
 
 <!-- ── SETTINGS ── -->
@@ -3608,80 +3618,181 @@ function getChecklistTasks(){
 let _curChecklistStation=null;
 
 function renderChecklist(){
-  const tabsEl=document.getElementById('checklistTabs');
-  const tasksEl=document.getElementById('checklistTasks');
-  const fixturesEl=document.getElementById('checklistFixtures');
-  const progressEl=document.getElementById('checklistProgress');
-  if(!tabsEl)return;
+  const stationListEl=document.getElementById('clStationList');
+  if(!stationListEl)return;
 
-  const stations=getScheduleRoles().map(r=>r.name);
-  if(!_curChecklistStation||!stations.includes(_curChecklistStation)) _curChecklistStation=stations[0]||null;
-
-  // Tabs
-  tabsEl.innerHTML=stations.map(s=>`<button class="tab ${s===_curChecklistStation?'active':''}" onclick="switchChecklistTab('${s.replace(/'/g,"\'")}')">${s}</button>`).join('');
-
+  const stations=typeof getScheduleRoles==='function'?getScheduleRoles().map(r=>({name:r.name,icon:r.icon})):[];
+  const allStations=[{name:'Fixtures',icon:'💡'},...stations];
   const state=db.checklistState||{};
-  const allTasks=getChecklistTasks()[_curChecklistStation]||[];
-  const allFixtures=db.fixtures;
 
-  // Count totals for progress
-  const totalFixtures=allFixtures.length;
-  const totalTasks=allTasks.length;
-  const total=totalFixtures+totalTasks;
-  const doneFixtures=allFixtures.filter(f=>state['fix_'+f.id]).length;
-  const doneTasks=allTasks.filter((_,i)=>state['task_'+_curChecklistStation+'_'+i]).length;
-  const done=doneFixtures+doneTasks;
+  // Build station list
+  stationListEl.innerHTML=allStations.map(s=>{
+    let done=0,total=0;
+    if(s.name==='Fixtures'){
+      total=db.fixtures.length;
+      done=db.fixtures.filter(f=>state['fix_'+f.id]&&state['fix_'+f.id]!=='pending').length;
+    } else {
+      const tasks=(typeof getChecklistTasks==='function'?getChecklistTasks():{})[s.name]||[];
+      total=tasks.length;
+      done=tasks.filter((_,i)=>state['task_'+s.name+'_'+i]).length;
+    }
+    const allDone=total>0&&done===total;
+    const isActive=_curChecklistStation===s.name;
+    return`<div onclick="switchChecklistTab('${s.name.replace(/'/g,"\'")}')" style="
+      display:flex;align-items:center;justify-content:space-between;
+      padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;
+      background:${isActive?'var(--aglow)':'transparent'};
+      border:1px solid ${isActive?'rgba(240,165,0,.3)':'transparent'};
+      transition:all .18s;
+    " onmouseover="if('${s.name}'!==_curChecklistStation)this.style.background='var(--s2)'"
+       onmouseout="if('${s.name}'!==_curChecklistStation)this.style.background='transparent'">
+      <div class="row gap8">
+        <span style="font-size:18px">${s.icon}</span>
+        <span style="font-size:13px;font-weight:${isActive?'700':'400'};color:${isActive?'var(--amber)':'var(--text)'}">${s.name}</span>
+      </div>
+      <span style="font-family:var(--mono);font-size:10px;background:${allDone?'var(--green)':total>0?'var(--s3)':'transparent'};color:${allDone?'#000':'var(--dim2)'};padding:2px 7px;border-radius:20px">${total>0?done+'/'+total:''}</span>
+    </div>`;
+  }).join('');
 
-  if(done>0){
-    progressEl.style.display='';
-    document.getElementById('checklistCount').textContent=done+' / '+total+' completed';
-    document.getElementById('checklistBar').style.width=Math.round(done/total*100)+'%';
-  } else {
-    progressEl.style.display='none';
+  // Render active station panel
+  const panel=document.getElementById('clMainPanel');
+  if(!panel)return;
+  if(!_curChecklistStation){
+    panel.innerHTML='<div class="panel"><div class="pb" style="text-align:center;padding:40px;color:var(--dim2)"><div style="font-size:36px;margin-bottom:10px">👈</div><div>Select a station to start</div></div></div>';
+    return;
   }
 
-  // Fixtures section
-  fixturesEl.innerHTML=!allFixtures.length?'':`
-    <div class="fw7 mb8" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim2)">Fixtures</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-bottom:14px">
-      ${allFixtures.map(f=>{
-        const s=state['fix_'+f.id]||'pending';
-        const colors={pending:'var(--s2)',ok:'var(--gglow)',issue:'var(--rglow)'};
-        const borders={pending:'var(--border2)',ok:'rgba(40,201,122,.4)',issue:'rgba(224,60,60,.4)'};
-        return`<div style="background:${colors[s]};border:1px solid ${borders[s]};border-radius:8px;padding:12px;transition:all .2s">
-          <div class="row jbet mb8">
-            <div><div class="fw7">${f.name}</div><div class="dim">${f.id}</div></div>
-            <span style="font-size:22px">${s==='ok'?'✅':s==='issue'?'🔴':'⬜'}</span>
-          </div>
-          <div class="row gap6">
-            <button class="btn bg bsm" style="flex:1;justify-content:center" onclick="clCheckItem('fix_${f.id}','ok')">✅ OK</button>
-            <button class="btn br bsm" style="flex:1;justify-content:center" onclick="clCheckItem('fix_${f.id}','issue')">🔴 Issue</button>
-            ${s!=='pending'?`<button class="btn bgh bsm" onclick="clCheckItem('fix_${f.id}','pending')">↺</button>`:''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+  const isAdmin_=typeof isAdmin==='function'&&isAdmin();
 
-  // Tasks section
-  tasksEl.innerHTML=!allTasks.length
-    ?`<div class="dim" style="padding:20px;text-align:center">No tasks for this station yet — tap ⚙️ Customize to add some.</div>`
-    :`<div class="fw7 mb8" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--dim2)">Tasks for ${_curChecklistStation}</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${allTasks.map((task,i)=>{
-          const key='task_'+_curChecklistStation+'_'+i;
-          const done=state[key];
-          return`<div style="display:flex;align-items:center;gap:10px;padding:12px;background:${done?'var(--gglow)':'var(--s2)'};border:1px solid ${done?'rgba(40,201,122,.3)':'var(--border)'};border-radius:8px;cursor:pointer;transition:all .2s" onclick="clCheckItem('${key}',${done?'false':'true'})">
-            <div style="font-size:20px;flex-shrink:0">${done?'✅':'⬜'}</div>
-            <div style="flex:1;font-size:13px;${done?'text-decoration:line-through;color:var(--dim2)':''}">${task}</div>
-          </div>`;
-        }).join('')}
-      </div>`;
+  if(_curChecklistStation==='Fixtures'){
+    // ── FIXTURES ──
+    const total=db.fixtures.length;
+    const done=db.fixtures.filter(f=>state['fix_'+f.id]&&state['fix_'+f.id]!=='pending').length;
+    const issues=db.fixtures.filter(f=>state['fix_'+f.id]==='issue').length;
+    const pct=total>0?Math.round(done/total*100):0;
+    panel.innerHTML=`<div class="panel">
+      <div class="ph row jbet">
+        <span class="pt">💡 Fixtures</span>
+        <span class="dim" style="font-size:12px">${done}/${total} checked</span>
+      </div>
+      <div class="pb">
+        <div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden;margin-bottom:16px">
+          <div style="height:100%;background:${issues?'var(--red)':pct===100?'var(--green)':'var(--amber)'};width:${pct}%;transition:width .3s"></div>
+        </div>
+        ${!total?'<p class="dim">No fixtures added yet.</p>':
+          `<div style="display:flex;flex-direction:column;gap:8px">
+            ${db.fixtures.map(f=>{
+              const s=state['fix_'+f.id]||'pending';
+              const bg={pending:'var(--s2)',ok:'var(--gglow)',issue:'var(--rglow)'}[s];
+              const bd={pending:'var(--border)',ok:'rgba(40,201,122,.4)',issue:'rgba(224,60,60,.5)'}[s];
+              const icon={pending:'⬜',ok:'✅',issue:'🔴'}[s];
+              return`<div style="background:${bg};border:1px solid ${bd};border-radius:10px;padding:14px;transition:all .2s">
+                <div class="row jbet mb10">
+                  <div>
+                    <div class="fw7" style="font-size:14px">${f.name}</div>
+                    <div class="dim">${f.id}${f.location?' · '+f.location:''} · ${f.bulbType}</div>
+                  </div>
+                  <span style="font-size:26px">${icon}</span>
+                </div>
+                <div class="row gap6">
+                  <button class="btn bg bsm" style="flex:1;justify-content:center" onclick="clCheckItem('fix_${f.id}','ok')">✅ OK</button>
+                  <button class="btn br bsm" style="flex:1;justify-content:center" onclick="clCheckItem('fix_${f.id}','issue')">🔴 Issue</button>
+                  ${s!=='pending'?`<button class="btn bgh bsm" onclick="clCheckItem('fix_${f.id}','pending')">↺</button>`:''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>`}
+        ${pct===100&&total>0?`<div style="text-align:center;margin-top:16px;padding:14px;background:var(--gglow);border:1px solid rgba(40,201,122,.3);border-radius:10px"><div style="font-size:24px">🎉</div><div class="fw7 cg">All fixtures checked!</div></div>`:''}
+      </div>
+    </div>`;
+  } else {
+    // ── STATION TASKS ──
+    const stationIcon=(typeof getScheduleRoles==='function'?getScheduleRoles():DEFAULT_ROLES).find(r=>r.name===_curChecklistStation)?.icon||'📋';
+    const tasks=(typeof getChecklistTasks==='function'?getChecklistTasks():{})[_curChecklistStation]||[];
+    const total=tasks.length;
+    const done=tasks.filter((_,i)=>state['task_'+_curChecklistStation+'_'+i]).length;
+    const pct=total>0?Math.round(done/total*100):0;
+
+    panel.innerHTML=`<div class="panel">
+      <div class="ph row jbet">
+        <span class="pt">${stationIcon} ${_curChecklistStation}</span>
+        <div class="row gap8">
+          ${isAdmin_?`<button class="btn bgh bsm" onclick="openChecklistEditorFor('${_curChecklistStation.replace(/'/g,"\'")}')">✏️ Edit Tasks</button>`:''}
+          ${total>0?`<span class="dim" style="font-size:12px">${done}/${total} done</span>`:''}
+        </div>
+      </div>
+      <div class="pb">
+        ${total>0?`<div style="background:var(--border);border-radius:4px;height:8px;overflow:hidden;margin-bottom:16px">
+          <div style="height:100%;background:${pct===100?'var(--green)':'var(--amber)'};width:${pct}%;transition:width .3s"></div>
+        </div>`:''}
+        ${!total
+          ? `<div style="text-align:center;padding:30px">
+              <div style="font-size:36px;margin-bottom:10px">📋</div>
+              <div class="dim mb12">No tasks for ${_curChecklistStation} yet</div>
+              ${isAdmin_?`<button class="btn ba bsm" onclick="openChecklistEditorFor('${_curChecklistStation.replace(/'/g,"\'")}')">+ Add Tasks</button>`:'<div class="dim">Ask an admin to add tasks</div>'}
+            </div>`
+          : `<div style="display:flex;flex-direction:column;gap:8px">
+              ${tasks.map((task,i)=>{
+                const key='task_'+_curChecklistStation+'_'+i;
+                const isDone=!!state[key];
+                return`<div style="display:flex;align-items:center;gap:12px;padding:14px;background:${isDone?'var(--gglow)':'var(--s2)'};border:1px solid ${isDone?'rgba(40,201,122,.3)':'var(--border)'};border-radius:10px;cursor:pointer;transition:all .2s" onclick="clCheckItem('${key}',${!isDone})">
+                  <div style="width:26px;height:26px;border-radius:50%;border:2px solid ${isDone?'var(--green)':'var(--border2)'};background:${isDone?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;transition:all .2s">${isDone?'✓':''}</div>
+                  <div style="flex:1;font-size:14px;font-weight:600;${isDone?'text-decoration:line-through;color:var(--dim2)':''}">${task}</div>
+                  ${isAdmin_?`<button class="btn bgh bsm" onclick="event.stopPropagation();removeChecklistTaskDirect('${_curChecklistStation.replace(/'/g,"\'")}',${i})" style="color:var(--red);opacity:.6">✕</button>`:''}
+                </div>`;
+              }).join('')}
+            </div>
+            ${isAdmin_?`<div class="row gap8" style="margin-top:12px">
+              <input id="clQuickTask_${_curChecklistStation.replace(/\s/g,'_')}" placeholder="Add a task..." style="flex:1" onkeydown="if(event.key==='Enter')addTaskQuick('${_curChecklistStation.replace(/'/g,"\'")}')">
+              <button class="btn ba bsm" onclick="addTaskQuick('${_curChecklistStation.replace(/'/g,"\'")}')">+ Add</button>
+            </div>`:''}
+            ${pct===100?`<div style="text-align:center;margin-top:12px;padding:14px;background:var(--gglow);border:1px solid rgba(40,201,122,.3);border-radius:10px"><div style="font-size:24px">🎉</div><div class="fw7 cg">All tasks complete!</div></div>`:''}
+          `}
+      </div>
+    </div>`;
+  }
 }
 
 function switchChecklistTab(station){
   _curChecklistStation=station;
   renderChecklist();
 }
+
+function openChecklistEditorFor(station){
+  _curChecklistStation=station;
+  const sel=document.getElementById('clStationSel');
+  if(sel){
+    const roles=typeof getScheduleRoles==='function'?getScheduleRoles().map(r=>r.name):[];
+    sel.innerHTML=roles.map(r=>`<option value="${r}" ${r===station?'selected':''}>${r}</option>`).join('');
+    renderChecklistEditor();
+  }
+  openM('editChecklist');
+}
+
+function addTaskQuick(station){
+  if(!isAdmin()){toast('Admin only','error');return;}
+  const inputId='clQuickTask_'+station.replace(/\s/g,'_');
+  const input=document.getElementById(inputId);
+  if(!input||!input.value.trim())return;
+  if(!db.settings.checklistTasks) db.settings.checklistTasks={};
+  if(!db.settings.checklistTasks[station]) db.settings.checklistTasks[station]=[];
+  db.settings.checklistTasks[station].push(input.value.trim());
+  input.value='';
+  save();renderChecklist();
+}
+
+function removeChecklistTaskDirect(station,idx){
+  if(!isAdmin()){toast('Admin only','error');return;}
+  if(!db.settings.checklistTasks) db.settings.checklistTasks={};
+  if(!db.settings.checklistTasks[station]){
+    // Copy from defaults
+    const def=(typeof DEFAULT_CHECKLIST_TASKS!=='undefined'?DEFAULT_CHECKLIST_TASKS:{});
+    db.settings.checklistTasks[station]=[...(def[station]||[])];
+  }
+  db.settings.checklistTasks[station].splice(idx,1);
+  save();renderChecklist();toast('Task removed','info');
+}
+
 
 function clCheckItem(key, value){
   if(!db.checklistState) db.checklistState={};
