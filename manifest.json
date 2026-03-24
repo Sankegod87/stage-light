@@ -1,6 +1,6 @@
 {
   "name": "Stage Light Tracker",
-  "short_name": "SL Tracker",
+  "short_name": "KCC TECH",
   "description": "Stage lighting and crew schedule management",
   "start_url": "/stage-light/",
   "scope": "/stage-light/",
