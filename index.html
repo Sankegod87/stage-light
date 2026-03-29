@@ -432,7 +432,7 @@ textarea{resize:vertical;min-height:70px;}
 <div id="loginScreen" style="
   position:fixed;inset:0;z-index:1000;
   background:var(--bg);
-  display:flex;align-items:center;justify-content:center;
+  display:none;align-items:center;justify-content:center;
   padding:20px;
   animation:fadeIn .3s;
 ">
@@ -4170,19 +4170,17 @@ loadTech();
 go('dashboard');
 handleURLScan(); // render app behind login screen
 applyPermissions();
-// Resume session if the saved tech ID still exists in the database
+// Resume session — if a tech ID was saved, trust it and skip login
 (function(){
   const savedId = (()=>{ try{ return localStorage.getItem(TECH_KEY); }catch(e){ return null; } })();
-  const techExists = savedId && db.technicians.some(t => t.id === savedId);
-  if(techExists){
-    // Already loaded by loadTech() — just show home screen, skip login
+  if(savedId){
+    // Resume session — go straight to dashboard, skip the home screen chooser
+    _techId = savedId;
     updTechUI();
-    renderDash();
-    showHomeScreen();
+    applyPermissions();
+    go("dashboard");
   } else {
-    // No valid saved session — show login
-    _techId = null;
-    try{ localStorage.removeItem(TECH_KEY); }catch(e){}
+    // No saved session — show login
     buildLsGrid();
     showLoginScreen();
   }
