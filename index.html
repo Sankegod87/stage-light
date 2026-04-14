@@ -332,6 +332,19 @@ textarea{resize:vertical;min-height:70px;}
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 @keyframes lsSlideUp { from{transform:translateY(30px);opacity:0} to{transform:none;opacity:1} }
 #loginScreen > div > div:last-of-type { animation: lsSlideUp .4s ease-out; }
+/* Mobile login — ensure content is centered when keyboard is not up, scrollable when it is */
+@media(max-width:768px){
+  #loginScreen {
+    align-items:flex-start !important;
+    padding-top:max(20px, env(safe-area-inset-top, 20px)) !important;
+    padding-bottom:40px !important;
+  }
+  #loginScreen > div {
+    width:100%;
+    max-width:420px;
+    margin:auto;
+  }
+}
 .ls-user-btn {
   background:var(--s2); border:1px solid var(--border2); border-radius:8px;
   padding:12px 8px; cursor:pointer; text-align:center;
@@ -432,8 +445,10 @@ textarea{resize:vertical;min-height:70px;}
 <div id="loginScreen" style="
   position:fixed;inset:0;z-index:1000;
   background:var(--bg);
-  display:none;align-items:center;justify-content:center;
+  display:none;align-items:flex-start;justify-content:center;
   padding:20px;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
   animation:fadeIn .3s;
 ">
   <!-- Noise overlay -->
@@ -475,7 +490,7 @@ textarea{resize:vertical;min-height:70px;}
             onkeydown="if(event.key==='Enter')lsSubmit()">
         </div>
         <div id="ls-err" style="display:none;color:var(--red);font-family:var(--mono);font-size:11px;margin-bottom:10px">❌ Incorrect password. Try again.</div>
-        <button onclick="lsSubmit()" style="width:100%;background:var(--amber);color:#000;border:none;border-radius:6px;padding:13px;font-family:var(--head);font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .18s" onmouseover="this.style.background='var(--amber2)'" onmouseout="this.style.background='var(--amber)'">
+        <button onclick="lsSubmit()" style="width:100%;background:var(--amber);color:#000;border:none;border-radius:6px;padding:13px;font-family:var(--head);font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:background .18s;-webkit-tap-highlight-color:rgba(0,0,0,.1);">
           Log In
         </button>
         <div style="text-align:center;margin-top:12px">
@@ -1643,7 +1658,10 @@ function lsSelectUser(id){
   document.getElementById('ls-role').textContent = (t.role||'Technician')+' · '+roleLabel;
   document.getElementById('ls-pw').value = '';
   document.getElementById('ls-err').style.display = 'none';
-  setTimeout(()=>document.getElementById('ls-pw').focus(), 100);
+  // Focus only on non-touch devices — on iOS, programmatic focus in setTimeout is blocked
+  if(!('ontouchstart' in window)){
+    setTimeout(()=>document.getElementById('ls-pw').focus(), 100);
+  }
 }
 
 function lsBack(){
