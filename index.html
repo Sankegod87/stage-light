@@ -1610,6 +1610,7 @@ window.addEventListener('syncStatus',e=>{const{state,msg}=e.detail;setSyncState(
 // LOGIN SCREEN
 // ══════════════════════════════════════════════════
 let _lsSelectedId = null;
+let _lsSelectedTech = null; // cache full tech object so Firebase re-syncs can't break submit
 
 function showLoginScreen(){
   const screen = document.getElementById('loginScreen');
@@ -1655,7 +1656,7 @@ function lsSelectUser(id){
     return;
   }
   _lsSelectedId = id;
-  document.getElementById('ls-step1').style.display = 'none';
+  _lsSelectedTech = t; // cache it here
   document.getElementById('ls-step2').style.display = '';
   document.getElementById('ls-avatar').textContent = t.avatar||'👤';
   document.getElementById('ls-name').textContent = t.name;
@@ -1671,12 +1672,13 @@ function lsSelectUser(id){
 
 function lsBack(){
   _lsSelectedId = null;
+  _lsSelectedTech = null;
   document.getElementById('ls-step1').style.display = '';
   document.getElementById('ls-step2').style.display = 'none';
 }
 
 function lsSubmit(){
-  const t = db.technicians.find(x=>x.id===_lsSelectedId);
+  const t = _lsSelectedTech || db.technicians.find(x=>x.id===_lsSelectedId);
   if(!t){
     // Tech not found — could be a Firebase sync timing issue; go back to step 1
     lsBack();
