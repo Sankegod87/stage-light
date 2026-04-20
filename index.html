@@ -5166,7 +5166,6 @@ function _updateSidebarUser() {
   if (rl) rl.textContent = t.role || '—';
 }
 document.addEventListener('DOMContentLoaded', function(){
-  document.body.classList.add('light-mode');
   setTimeout(_updateSidebarUser, 800);
   setInterval(_updateSidebarUser, 2000);
 });
