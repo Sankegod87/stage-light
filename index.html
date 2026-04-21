@@ -2187,13 +2187,14 @@ window._onRemoteData=function(r){
   db.fixtures=r.fixtures||[];db.outages=r.outages||[];
   db.inventory=r.inventory||[];db.orders=r.orders||[];db.usageLog=r.usageLog||[];
   db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];db.bulbRegistry=r.bulbRegistry||[];db.schedules=r.schedules||{};db.availability=r.availability||{};db.checklistState=r.checklistState||{};db.shows=r.shows||[];if(r.attendanceData){db.attendanceData=r.attendanceData;if(!db.attendanceData.sessions)db.attendanceData.sessions=[];if(!db.attendanceData.records)db.attendanceData.records={};}if(!db.attendanceData)db.attendanceData={sessions:[],records:{}};
-  if(!db.gearItems)db.gearItems=[];
-  if(!db.checkouts)db.checkouts=[];
-  if(!db.maintLogs)db.maintLogs=[];
-  if(!db.techRequests)db.techRequests=[];
-  if(!db.announcements)db.announcements=[];
-  if(!db.signoffs)db.signoffs={};
-  if(!db.trainingModules)db.trainingModules=[];
+  // Sync Stage 3/4/5 fields — use remote value if present, else keep local so saves aren't overwritten
+  db.gearItems=r.gearItems||db.gearItems||[];
+  db.checkouts=r.checkouts||db.checkouts||[];
+  db.maintLogs=r.maintLogs||db.maintLogs||[];
+  db.techRequests=r.techRequests||db.techRequests||[];
+  db.announcements=r.announcements||db.announcements||[];
+  db.signoffs=r.signoffs||db.signoffs||{};
+  db.trainingModules=r.trainingModules||db.trainingModules||[];
   lsave();
   // If login screen is visible, rebuild grid with fresh Firebase data
   const loginVisible = document.getElementById('loginScreen')?.style.display === 'flex';
@@ -5665,9 +5666,10 @@ function openM_checkoutGear(){
   _populatePersonSelect('co-person');
   const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+7);
   document.getElementById('co-due').value=tomorrow.toISOString().slice(0,10);
-  openM('checkoutGear');
+  document.getElementById('m-checkoutGear').style.display='flex';
 }
 function doCheckout(){
+  if(!getCurTech()){toast('Please log in first','error');return;}
   const gearId=document.getElementById('co-item').value;
   const personId=document.getElementById('co-person').value;
   if(!gearId){toast('Select a gear item','error');return;}
@@ -5821,7 +5823,7 @@ function openM_addMaintEntry(){
   document.getElementById('me-notes').value='';
   document.getElementById('me-cost').value='';
   document.getElementById('me-nextdue').value='';
-  openM('addMaintEntry');
+  document.getElementById('m-addMaintEntry').style.display='flex';
 }
 function saveMaintEntry(){
   if(!isAdmin()){toast('Admin required','error');return;}
@@ -5930,13 +5932,7 @@ function renderMaintenance(){
   }).join('');
 }
 
-// ── Wire openM for checkout/maint to pre-populate selects ─
-const _origOpenM = window.openM || function(){};
-window.openM = function(id){
-  if(id==='checkoutGear') openM_checkoutGear();
-  else if(id==='addMaintEntry') openM_addMaintEntry();
-  else _origOpenM(id);
-};
+// ── openM helpers now call the modal directly — no patch needed ─
 
 
 // ══════════════════════════════════════════════════════════
@@ -6162,13 +6158,17 @@ function resetSignoffs(){
 }
 
 // ── Wire openM for request "by" person select ─────────────
-const _s4OrigOpenM = window.openM || function(){};
+const _s4OrigOpenM = openM;
 window.openM = function(id){
   if(id==='addRequest'){
     _populatePersonSelect('rq-by');
     const tech=getCurTech();
     if(tech) setTimeout(()=>{document.getElementById('rq-by').value=tech.id;},50);
-    _s4OrigOpenM(id);
+    document.getElementById('m-addRequest').style.display='flex';
+  } else if(id==='checkoutGear'){
+    openM_checkoutGear();
+  } else if(id==='addMaintEntry'){
+    openM_addMaintEntry();
   } else {
     _s4OrigOpenM(id);
   }
