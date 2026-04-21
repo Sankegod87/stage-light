@@ -1247,7 +1247,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Training Hub</h2>
       <div class="dim" style="margin-top:4px">Guides, resources and onboarding for every department</div>
     </div>
-    <button class="btn ba" data-perm="admin" onclick="openM('addTrainingModule')">+ Add Module</button>
+    <button class="btn ba" onclick="openM('addTrainingModule')">+ Add Module</button>
   </div>
   <div class="dept-filter-row" id="training-dept-filter"></div>
   <div id="training-list"></div>
@@ -1317,7 +1317,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Announcements</h2>
       <div class="dim" style="margin-top:4px">Team-wide and department notices</div>
     </div>
-    <button class="btn ba" data-perm="admin" onclick="openM('addAnnouncement')">+ Post</button>
+    <button class="btn ba" onclick="openM('addAnnouncement')">+ Post</button>
   </div>
   <div id="ann-list"></div>
 </div>
@@ -1329,7 +1329,7 @@ textarea { resize:vertical; min-height:70px; }
       <div class="dim" style="margin-top:4px">Track who has what gear and when it's due back</div>
     </div>
     <div class="row gap8">
-      <button class="btn ba" data-perm="admin" onclick="openM('addGearItem')">+ Add Gear Item</button>
+      <button class="btn ba" onclick="openM('addGearItem')">+ Add Gear Item</button>
       <button class="btn bb" onclick="openM('checkoutGear')">📤 Check Out</button>
     </div>
   </div>
@@ -1351,7 +1351,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Maintenance Log</h2>
       <div class="dim" style="margin-top:4px">Service history and upcoming maintenance for all gear</div>
     </div>
-    <button class="btn ba" data-perm="admin" onclick="openM('addMaintEntry')">+ Log Service</button>
+    <button class="btn ba" onclick="openM('addMaintEntry')">+ Log Service</button>
   </div>
   <!-- Summary cards -->
   <div class="stats" style="margin-bottom:16px" id="maint-stats"></div>
@@ -5601,7 +5601,6 @@ function _populatePersonSelect(selId){
 
 // ── GEAR LIBRARY ─────────────────────────────────────────
 function saveGearItem(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const name=(document.getElementById('gi-name').value||'').trim();
   if(!name){toast('Item name required','error');return;}
   const item={
@@ -5636,7 +5635,6 @@ function openEditGearItem(id){
   openM('editGearItem');
 }
 function saveGearItemEdit(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const id=document.getElementById('egi-id').value;
   const g=(db.gearItems||[]).find(x=>x.id===id);if(!g)return;
   g.name=(document.getElementById('egi-name').value||'').trim()||g.name;
@@ -5826,7 +5824,6 @@ function openM_addMaintEntry(){
   document.getElementById('m-addMaintEntry').style.display='flex';
 }
 function saveMaintEntry(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const gearId=document.getElementById('me-item').value;
   const dateVal=document.getElementById('me-date').value;
   if(!gearId){toast('Select a gear item','error');return;}
@@ -5983,7 +5980,6 @@ function openEditRequest(id){
   openM('editRequest');
 }
 function saveRequestEdit(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const id=document.getElementById('er-id').value;
   const r=(db.techRequests||[]).find(x=>x.id===id);if(!r)return;
   r.status=document.getElementById('er-status').value;
@@ -6063,7 +6059,6 @@ function renderRequests(){
 
 // ── ANNOUNCEMENTS ─────────────────────────────────────────
 function saveAnnouncement(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const title=(document.getElementById('an-title').value||'').trim();
   const body=(document.getElementById('an-body').value||'').trim();
   if(!title||!body){toast('Title and message required','error');return;}
@@ -6207,7 +6202,6 @@ let _lbChart = null;
 
 // ── TRAINING HUB ──────────────────────────────────────────
 function saveTrainingModule(){
-  if(!isAdmin()){toast('Admin required','error');return;}
   const title=(document.getElementById('tm-title').value||'').trim();
   if(!title){toast('Title required','error');return;}
   const mod={
