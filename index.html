@@ -1247,7 +1247,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Training Hub</h2>
       <div class="dim" style="margin-top:4px">Guides, resources and onboarding for every department</div>
     </div>
-    <button class="btn ba" onclick="openM('addTrainingModule')">+ Add Module</button>
+    <button class="btn ba" data-perm="admin" onclick="openM('addTrainingModule')">+ Add Module</button>
   </div>
   <div class="dept-filter-row" id="training-dept-filter"></div>
   <div id="training-list"></div>
@@ -1317,7 +1317,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Announcements</h2>
       <div class="dim" style="margin-top:4px">Team-wide and department notices</div>
     </div>
-    <button class="btn ba" onclick="openM('addAnnouncement')">+ Post</button>
+    <button class="btn ba" data-perm="admin" onclick="openM('addAnnouncement')">+ Post</button>
   </div>
   <div id="ann-list"></div>
 </div>
@@ -1329,7 +1329,7 @@ textarea { resize:vertical; min-height:70px; }
       <div class="dim" style="margin-top:4px">Track who has what gear and when it's due back</div>
     </div>
     <div class="row gap8">
-      <button class="btn ba" onclick="openM('addGearItem')">+ Add Gear Item</button>
+      <button class="btn ba" data-perm="admin" onclick="openM('addGearItem')">+ Add Gear Item</button>
       <button class="btn bb" onclick="openM('checkoutGear')">📤 Check Out</button>
     </div>
   </div>
@@ -1351,7 +1351,7 @@ textarea { resize:vertical; min-height:70px; }
       <h2 class="fw9 tu ls2" style="font-size:14px">Maintenance Log</h2>
       <div class="dim" style="margin-top:4px">Service history and upcoming maintenance for all gear</div>
     </div>
-    <button class="btn ba" onclick="openM('addMaintEntry')">+ Log Service</button>
+    <button class="btn ba" data-perm="admin" onclick="openM('addMaintEntry')">+ Log Service</button>
   </div>
   <!-- Summary cards -->
   <div class="stats" style="margin-bottom:16px" id="maint-stats"></div>
@@ -2187,14 +2187,13 @@ window._onRemoteData=function(r){
   db.fixtures=r.fixtures||[];db.outages=r.outages||[];
   db.inventory=r.inventory||[];db.orders=r.orders||[];db.usageLog=r.usageLog||[];
   db.settings=r.settings||{};db.usedBulbs=r.usedBulbs||[];db.bulbRegistry=r.bulbRegistry||[];db.schedules=r.schedules||{};db.availability=r.availability||{};db.checklistState=r.checklistState||{};db.shows=r.shows||[];if(r.attendanceData){db.attendanceData=r.attendanceData;if(!db.attendanceData.sessions)db.attendanceData.sessions=[];if(!db.attendanceData.records)db.attendanceData.records={};}if(!db.attendanceData)db.attendanceData={sessions:[],records:{}};
-  // Sync Stage 3/4/5 fields — use remote value if present, else keep local so saves aren't overwritten
-  db.gearItems=r.gearItems||db.gearItems||[];
-  db.checkouts=r.checkouts||db.checkouts||[];
-  db.maintLogs=r.maintLogs||db.maintLogs||[];
-  db.techRequests=r.techRequests||db.techRequests||[];
-  db.announcements=r.announcements||db.announcements||[];
-  db.signoffs=r.signoffs||db.signoffs||{};
-  db.trainingModules=r.trainingModules||db.trainingModules||[];
+  if(!db.gearItems)db.gearItems=[];
+  if(!db.checkouts)db.checkouts=[];
+  if(!db.maintLogs)db.maintLogs=[];
+  if(!db.techRequests)db.techRequests=[];
+  if(!db.announcements)db.announcements=[];
+  if(!db.signoffs)db.signoffs={};
+  if(!db.trainingModules)db.trainingModules=[];
   lsave();
   // If login screen is visible, rebuild grid with fresh Firebase data
   const loginVisible = document.getElementById('loginScreen')?.style.display === 'flex';
@@ -3123,7 +3122,7 @@ function getTech(key){const id=_selTech[key];return id?db.technicians.find(t=>t.
 
 // ── Modals ──
 function openM(id){
-  document.getElementById('m-'+id).style.display='flex';
+  const _mEl=document.getElementById('m-'+id);if(!_mEl){console.warn('openM: no modal for',id);return;}_mEl.style.display='flex';
   if(id==='whoAmI'){document.getElementById('whoStep1').style.display='';document.getElementById('whoStep2').style.display='none';_whoSelectedId=null;buildWhoGrid();}
   if(id==='reportOutage')buildTechGrid('outTechG','outage');
   if(id==='markReplaced')buildTechGrid('repTechG','replace');
@@ -3132,9 +3131,9 @@ function openM(id){
   if(id==='editTech')renderTrainingGrids();
   if(id==='editChecklist'){const sel=document.getElementById('clStationSel');if(sel){const roles=getScheduleRoles().map(r=>r.name);sel.innerHTML=roles.map(r=>`<option value="${r}">${r}</option>`).join('');renderChecklistEditor();}}
 }
-function closeM(id){document.getElementById('m-'+id).style.display='none';if(id==='markReplaced')stopRepCamera&&stopRepCamera();}
+function closeM(id){const _cmEl=document.getElementById('m-'+id);if(_cmEl)_cmEl.style.display='none';if(id==='markReplaced')stopRepCamera&&stopRepCamera();}
 function mOut(e,id){if(e.target===document.getElementById('m-'+id))closeM(id);}
-function closeAllM(){['whoAmI','addTech','editTech','addFixture','editFixture','viewFixture','reportOutage','markReplaced','receiveBulbs','changeMyPw','globalScan','addUsedBulb','editSchedule','editInv','addShow','editChecklist'].forEach(closeM);}
+function closeAllM(){['whoAmI','addTech','editTech','addFixture','editFixture','viewFixture','reportOutage','markReplaced','receiveBulbs','changeMyPw','globalScan','addUsedBulb','editSchedule','editInv','addShow','editChecklist','addGearItem','editGearItem','checkoutGear','returnGear','addMaintEntry','addRequest','editRequest','addAnnouncement','addTrainingModule','addCert'].forEach(id=>{const el=document.getElementById('m-'+id);if(el)el.style.display='none';});}
 function buildWhoGrid(){
   const el=document.getElementById('whoGrid');
   if(!db.technicians.length){el.innerHTML='<p class="dim">No technicians yet.</p>';return;}
@@ -5601,6 +5600,7 @@ function _populatePersonSelect(selId){
 
 // ── GEAR LIBRARY ─────────────────────────────────────────
 function saveGearItem(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const name=(document.getElementById('gi-name').value||'').trim();
   if(!name){toast('Item name required','error');return;}
   const item={
@@ -5635,6 +5635,7 @@ function openEditGearItem(id){
   openM('editGearItem');
 }
 function saveGearItemEdit(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const id=document.getElementById('egi-id').value;
   const g=(db.gearItems||[]).find(x=>x.id===id);if(!g)return;
   g.name=(document.getElementById('egi-name').value||'').trim()||g.name;
@@ -5664,10 +5665,9 @@ function openM_checkoutGear(){
   _populatePersonSelect('co-person');
   const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+7);
   document.getElementById('co-due').value=tomorrow.toISOString().slice(0,10);
-  document.getElementById('m-checkoutGear').style.display='flex';
+  openM('checkoutGear');
 }
 function doCheckout(){
-  if(!getCurTech()){toast('Please log in first','error');return;}
   const gearId=document.getElementById('co-item').value;
   const personId=document.getElementById('co-person').value;
   if(!gearId){toast('Select a gear item','error');return;}
@@ -5821,9 +5821,10 @@ function openM_addMaintEntry(){
   document.getElementById('me-notes').value='';
   document.getElementById('me-cost').value='';
   document.getElementById('me-nextdue').value='';
-  document.getElementById('m-addMaintEntry').style.display='flex';
+  openM('addMaintEntry');
 }
 function saveMaintEntry(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const gearId=document.getElementById('me-item').value;
   const dateVal=document.getElementById('me-date').value;
   if(!gearId){toast('Select a gear item','error');return;}
@@ -5929,7 +5930,13 @@ function renderMaintenance(){
   }).join('');
 }
 
-// ── openM helpers now call the modal directly — no patch needed ─
+// ── Wire openM for checkout/maint to pre-populate selects ─
+const _origOpenM = window.openM || function(){};
+window.openM = function(id){
+  if(id==='checkoutGear') openM_checkoutGear();
+  else if(id==='addMaintEntry') openM_addMaintEntry();
+  else _origOpenM(id);
+};
 
 
 // ══════════════════════════════════════════════════════════
@@ -5980,6 +5987,7 @@ function openEditRequest(id){
   openM('editRequest');
 }
 function saveRequestEdit(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const id=document.getElementById('er-id').value;
   const r=(db.techRequests||[]).find(x=>x.id===id);if(!r)return;
   r.status=document.getElementById('er-status').value;
@@ -6059,6 +6067,7 @@ function renderRequests(){
 
 // ── ANNOUNCEMENTS ─────────────────────────────────────────
 function saveAnnouncement(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const title=(document.getElementById('an-title').value||'').trim();
   const body=(document.getElementById('an-body').value||'').trim();
   if(!title||!body){toast('Title and message required','error');return;}
@@ -6153,17 +6162,13 @@ function resetSignoffs(){
 }
 
 // ── Wire openM for request "by" person select ─────────────
-const _s4OrigOpenM = openM;
+const _s4OrigOpenM = window.openM || function(){};
 window.openM = function(id){
   if(id==='addRequest'){
     _populatePersonSelect('rq-by');
     const tech=getCurTech();
     if(tech) setTimeout(()=>{document.getElementById('rq-by').value=tech.id;},50);
-    document.getElementById('m-addRequest').style.display='flex';
-  } else if(id==='checkoutGear'){
-    openM_checkoutGear();
-  } else if(id==='addMaintEntry'){
-    openM_addMaintEntry();
+    _s4OrigOpenM(id);
   } else {
     _s4OrigOpenM(id);
   }
@@ -6202,6 +6207,7 @@ let _lbChart = null;
 
 // ── TRAINING HUB ──────────────────────────────────────────
 function saveTrainingModule(){
+  if(!isAdmin()){toast('Admin required','error');return;}
   const title=(document.getElementById('tm-title').value||'').trim();
   if(!title){toast('Title required','error');return;}
   const mod={
