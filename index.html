@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <script>
 (function(){
-  var t = localStorage.getItem('slt_theme') || 'light';
+  var t = localStorage.getItem('slt_theme') || 'dark';
   if (t === 'light') {
     document.documentElement.className = 'light-mode';
   }
@@ -742,6 +742,47 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
 }
 #darkToggle:hover { border-color:var(--amber);color:var(--text); }
 
+
+/* ══ Redesigned Fixtures & Inventory Cards ══ */
+.fix-card {
+  background:var(--s1);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;transition:all .18s;cursor:pointer;
+}
+.fix-card:hover { border-color:var(--border2);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,.06); }
+.fix-card.status-out { border-left:3px solid #A32D2D; }
+.fix-card.status-ok  { border-left:3px solid #3B6D11; }
+.fix-card.status-maint { border-top:2px solid #534AB7; }
+.fix-card-head {
+  padding:14px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+}
+.fix-card-id {
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:2px;
+  color:var(--dim2);text-transform:uppercase;margin-bottom:4px;
+}
+.fix-card-name { font-size:15px;font-weight:700;color:var(--text);font-family:var(--head);line-height:1.2; }
+.fix-card-loc  { font-family:var(--mono);font-size:10px;color:var(--dim2);margin-top:2px; }
+.fix-card-body { padding:0 16px 14px;display:flex;flex-direction:column;gap:8px; }
+.fix-card-row  { display:flex;align-items:center;justify-content:space-between;font-size:12px; }
+.fix-card-label{ font-family:var(--mono);font-size:9px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase; }
+.fix-card-val  { font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text); }
+.fix-card-foot { border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:6px;justify-content:flex-end;background:var(--s2); }
+.fix-card-bulb-bar { height:3px;border-radius:2px;background:var(--s3);margin:8px 16px 0; }
+.fix-card-bulb-fill{ height:100%;border-radius:2px;background:#3B6D11;transition:width .4s; }
+
+/* Stock cards */
+.stock-card {
+  background:var(--s1);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;transition:border-color .18s;
+}
+.stock-card:hover { border-color:var(--border2); }
+.stock-card.low   { border-left:3px solid #A32D2D; }
+.stock-card.ok    { border-left:3px solid #3B6D11; }
+.stock-card-head  { padding:14px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px; }
+.stock-card-type  { font-size:14px;font-weight:700;color:var(--text);font-family:var(--head);flex:1;min-width:0; }
+.stock-card-body  { padding:0 16px 14px; }
+.stock-bar-wrap   { height:6px;background:var(--s3);border-radius:4px;overflow:hidden;margin:10px 0 4px; }
+.stock-bar-fill   { height:100%;border-radius:4px;transition:width .4s; }
+.stock-card-foot  { border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:6px;justify-content:flex-end;background:var(--s2); }
 </style>
 </head>
 <body>
@@ -983,7 +1024,6 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h10"/></svg>
       History
     </button>
-    <div class="snav-label" style="margin-top:8px">Inventory</div>
     <button class="snav-btn" id="snav-inventory" onclick="go('inventory')">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="12" height="9" rx="1"/><path d="M5 5V4a3 3 0 016 0v1"/></svg>
       Stock
@@ -1047,7 +1087,7 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
     </button>
   </div>
   <div class="sidebar-footer">
-    <div class="sf-avatar" id="sfAvatar">?</div>
+    <div class="sf-avatar" id="sfAvatar">👤</div>
     <div style="flex:1;min-width:0">
       <div class="sf-name" id="sfName">—</div>
       <div class="sf-role" id="sfRole">—</div>
@@ -1158,36 +1198,48 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
 
 <!-- ── FIXTURES ── -->
 <div id="pg-fixtures" style="display:none">
-  <div class="row jbet mb14">
-    <h2 class="fw9 tu ls2" style="font-size:14px">Stage Fixtures</h2>
+  <!-- Header -->
+  <div class="row jbet mb16">
+    <div>
+      <h2 class="fw9 tu ls2" style="font-size:14px">Stage Fixtures</h2>
+      <div class="dim" style="margin-top:3px">All lighting fixtures and their current status</div>
+    </div>
     <div class="row gap8">
-      <select id="fixFilter" onchange="renderFix()" style="width:auto;padding:6px 10px;font-size:11px">
+      <select id="fixFilter" onchange="renderFix()" style="width:auto;padding:7px 12px;font-size:11px;border-radius:8px;border:1px solid var(--border2);background:var(--s1);color:var(--text);font-family:var(--mono)">
         <option value="all">All Fixtures</option>
-        <option value="out">Out Only</option>
-        <option value="ok">OK Only</option>
-        <option value="maint">Maintenance Due</option>
+        <option value="out">🔴 Out Only</option>
+        <option value="ok">✅ OK Only</option>
+        <option value="maint">🔧 Maint Due</option>
       </select>
       <button class="btn ba" data-perm="admin" onclick="openM('addFixture')">+ Add Fixture</button>
     </div>
   </div>
-  <div class="panel"><div class="pb" style="padding:0">
-    <table class="tbl"><thead><tr>
-      <th>ID</th><th>Name / Location</th><th class="mhide">Bulb Type</th><th class="mhide">Category</th><th>Status</th><th>Current Bulb</th><th class="mhide">Last Outage</th><th class="mhide">Outages</th><th>Actions</th>
-    </tr></thead><tbody id="fixtTbl"></tbody></table>
-  </div></div>
+  <!-- Summary stat strip -->
+  <div id="fix-stats-strip" class="stats mb16"></div>
+  <!-- Fixture cards grid -->
+  <div id="fixtCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+  <!-- Hidden tbody still needed by renderFix JS — kept invisible -->
+  <table style="display:none"><tbody id="fixtTbl"></tbody></table>
 </div>
 
 <!-- ── INVENTORY ── -->
 <div id="pg-inventory" style="display:none">
-  <div class="row jbet mb14">
-    <h2 class="fw9 tu ls2" style="font-size:14px">Bulb Inventory</h2>
+  <!-- Header -->
+  <div class="row jbet mb16">
+    <div>
+      <h2 class="fw9 tu ls2" style="font-size:14px">Bulb Inventory</h2>
+      <div class="dim" style="margin-top:3px">Stock levels, orders and individual bulb tracking</div>
+    </div>
     <div class="row gap8">
-      <button class="btn bgh" onclick="printLabels()">🖨️ Print Labels</button>
+      <button class="btn bgh" onclick="printLabels()">🖨️ Labels</button>
       <button class="btn bgh" onclick="exportCSV('inventory')">⬇️ Export</button>
-      <button class="btn br bsm" data-perm="master" onclick="requirePin(clearAllInventory)">🗑️ Clear All</button>
+      <button class="btn br bsm" data-perm="master" onclick="requirePin(clearAllInventory)" style="font-size:10px">🗑️</button>
       <button class="btn ba" data-perm="admin" onclick="openM('receiveBulbs')">+ Receive Batch</button>
     </div>
   </div>
+  <!-- Summary stat strip -->
+  <div id="inv-stats-strip" class="stats mb16"></div>
+  <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" onclick="invTab('stock',this)">Current Stock</button>
     <button class="tab" onclick="invTab('orders',this)">Order History</button>
@@ -1195,38 +1247,42 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
     <button class="tab" onclick="invTab('used',this)">♻️ Used Bulbs</button>
     <button class="tab" onclick="invTab('registry',this)">🏷️ Bulb Registry</button>
   </div>
-  <div id="it-stock"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
-    <thead><tr><th>Bulb Type</th><th>In Stock</th><th>Threshold</th><th>Received</th><th>Used</th><th>Avg Life</th><th>Status</th><th></th></tr></thead>
-    <tbody id="stockTbl"></tbody>
-  </table></div></div></div>
+  <!-- Stock tab — card grid -->
+  <div id="it-stock">
+    <div id="stockCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
+    <table style="display:none"><tbody id="stockTbl"></tbody></table>
+  </div>
+  <!-- Orders tab -->
   <div id="it-orders" style="display:none"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
     <thead><tr><th>Date</th><th>Bulb Type</th><th>Qty</th><th>Supplier</th><th>Received By</th><th>Notes</th></tr></thead>
     <tbody id="ordersTbl"></tbody>
   </table></div></div></div>
+  <!-- Usage tab -->
   <div id="it-usage" style="display:none"><div class="panel"><div class="pb" style="padding:0"><table class="tbl">
     <thead><tr><th>Date</th><th>Bulb Type</th><th>Qty</th><th>Fixture</th><th>Technician</th><th>Bulb ID</th><th>Condition</th></tr></thead>
     <tbody id="usageTbl"></tbody>
   </table></div></div></div>
+  <!-- Registry tab -->
   <div id="it-registry" style="display:none">
     <div class="row jbet mb12">
-      <p class="dim">Every individual bulb label generated — full install/pull history per label.</p>
+      <p class="dim">Every individual bulb label — full install/pull history per label.</p>
       <div class="row gap8">
-        <select id="regFilter" onchange="renderBulbRegistry()" style="font-size:11px;padding:5px 8px;width:auto">
+        <select id="regFilter" onchange="renderBulbRegistry()" style="font-size:11px;padding:5px 8px;width:auto;border-radius:6px;border:1px solid var(--border2);background:var(--s1);color:var(--text);font-family:var(--mono)">
           <option value="all">All Bulbs</option>
           <option value="in_stock">In Stock</option>
           <option value="installed">Installed</option>
           <option value="pulled">Pulled</option>
           <option value="disposed">Disposed</option>
         </select>
-        <button class="btn bgh bsm" data-perm="master" onclick="requirePin(clearBulbRegistry)" style="border-color:var(--red);color:var(--red)">🗑️ Clear Registry</button>
+        <button class="btn bgh bsm" data-perm="master" onclick="requirePin(clearBulbRegistry)" style="border-color:var(--red);color:var(--red)">🗑️ Clear</button>
       </div>
     </div>
     <div class="panel"><div class="pb" style="padding:0"><table class="tbl">
-      <thead><tr><th>Bulb ID</th><th>Type</th><th>Status</th><th>Current Location</th><th>Installs</th><th>Created</th><th>Last Event</th></tr></thead>
+      <thead><tr><th>Bulb ID</th><th>Type</th><th>Status</th><th>Location</th><th>Installs</th><th>Created</th><th>Last Event</th></tr></thead>
       <tbody id="regTbl"></tbody>
     </table></div></div>
   </div>
-
+  <!-- Used Bulbs tab -->
   <div id="it-used" style="display:none">
     <div class="row jbet mb12">
       <p class="dim">Bulbs pulled from fixtures — available for reuse or disposal.</p>
@@ -2869,33 +2925,82 @@ function renderFix(){
   if(filter==='maint') fixtures=fixtures.filter(f=>maintDueIds.has(f.id));
   const lastOut={};
   [...db.outages].sort((a,b)=>b.timestamp-a.timestamp).forEach(o=>{if(!lastOut[o.fixtureId])lastOut[o.fixtureId]=o.timestamp;});
-  document.getElementById('fixtTbl').innerHTML=!fixtures.length
-    ?'<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:28px">No fixtures — click "+ Add Fixture"</td></tr>'
-    :fixtures.map(f=>`<tr>
-        <td><span class="mono ca" style="cursor:pointer" onclick="viewFixture('${f.id}')">${f.id}</span></td>
-        <td><div class="fw7" style="cursor:pointer" onclick="viewFixture('${f.id}')">${f.name}</div><div class="dim">${f.location}</div></td>
-        <td class="mono" style="font-size:11px">${f.bulbType}</td>
-        <td><span class="badge bblue">${f.category||'other'}</span></td>
-        <td>${f.status==='ok'?'<span class="badge bok"><span class="bd"></span>OK</span>':'<span class="badge bout"><span class="bd pulse"></span>OUT</span>'}
-            ${maintDueIds.has(f.id)?'<span class="maint-badge" style="margin-left:4px">MAINT</span>':''}</td>
-        <td>${(()=>{
-          const reg=db.bulbRegistry.find(b=>b.installedIn===f.id&&b.status==='installed');
-          if(!reg&&f.currentBulbId){const r2=db.bulbRegistry.find(b=>b.bulbId===f.currentBulbId);
-            if(r2)return`<span class="mono ca" style="font-size:11px">${r2.bulbId}</span><div class="dim" style="font-size:10px">${r2.status==='installed'?'💡 In service':r2.status}</div>`;}
-          if(!reg)return'<span class="dim" style="font-size:11px">—</span>';
-          return`<span class="mono ca" style="font-size:11px">${reg.bulbId}</span><div class="dim" style="font-size:10px">💡 Since ${ago(reg.installedAt)}</div>`;
-        })()}</td>
-        <td class="dim">${lastOut[f.id]?ago(lastOut[f.id]):'Never'}</td>
-        <td style="text-align:center"><strong>${db.outages.filter(o=>o.fixtureId===f.id).length}</strong></td>
-        <td><div class="row gap6">
-          <button class="btn br bsm" onclick="openOutModal('${f.id}')">🔴</button>
-          ${f.status==='out'?`<button class="btn bg bsm" onclick="openRepModal('${f.id}')">✅</button>`:''}
-          <button class="btn bgh bsm" onclick="viewFixture('${f.id}')">👁</button>
-          <button class="btn bgh bsm" data-perm="admin" onclick="editFixture('${f.id}')">✏️</button>
-          <button class="btn bgh bsm" onclick="markMaintDone('${f.id}')">🔧</button>
-          <button class="btn bgh bsm" data-perm="master" onclick="requirePin(()=>deleteFixture('${f.id}'))">🗑️</button>
-        </div></td>
-      </tr>`).join('');
+
+  // Stat strip
+  const total=db.fixtures.length;
+  const out=db.fixtures.filter(f=>f.status==='out').length;
+  const maint=getMaintDue().length;
+  const strip=document.getElementById('fix-stats-strip');
+  if(strip) strip.innerHTML=`
+    <div class="sc ca"><div class="sc-label">Total Fixtures</div><div class="sc-val">${total}</div></div>
+    <div class="sc ${out?'cr':'cg'}"><div class="sc-label">Currently Out</div><div class="sc-val">${out}</div></div>
+    <div class="sc cg"><div class="sc-label">Operational</div><div class="sc-val">${total-out}</div></div>
+    <div class="sc cp"><div class="sc-label">Maint Due</div><div class="sc-val">${maint}</div></div>`;
+
+  // Card grid
+  const grid=document.getElementById('fixtCards');
+  if(!grid) return;
+  if(!fixtures.length){
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 0;color:var(--dim2)"><div style="font-size:40px;margin-bottom:12px">💡</div><div style="font-family:var(--head);font-size:14px;font-weight:700">No fixtures yet</div><div class="dim" style="margin-top:6px">Click "+ Add Fixture" to get started</div></div>';
+    return;
+  }
+  grid.innerHTML=fixtures.map(f=>{
+    const isOut=f.status==='out';
+    const isMaint=maintDueIds.has(f.id);
+    const outageCount=db.outages.filter(o=>o.fixtureId===f.id).length;
+    const reg=db.bulbRegistry.find(b=>b.installedIn===f.id&&b.status==='installed');
+    const bulbLabel=reg?`<span class="mono" style="color:var(--amber);font-size:11px;font-weight:700">${reg.bulbId}</span><span class="dim" style="margin-left:6px">since ${ago(reg.installedAt)}</span>`
+      :'<span class="dim">No bulb scanned</span>';
+    const cardClass='fix-card'+(isOut?' status-out':' status-ok')+(isMaint?' status-maint':'');
+    const catColors={wash:'#0F6E56',spot:'#534AB7',par:'#854F0B',fresnel:'#185FA5',led:'#3B6D11',follow:'#A32D2D',other:'#888'};
+    const catColor=catColors[f.category||'other']||'#888';
+    return`<div class="${cardClass}">
+      <div class="fix-card-head">
+        <div style="flex:1;min-width:0">
+          <div class="fix-card-id">${f.id}</div>
+          <div class="fix-card-name">${f.name||'—'}</div>
+          <div class="fix-card-loc">📍 ${f.location||'No location'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+          ${isOut
+            ?'<span class="badge bout"><span class="bd pulse"></span>OUT</span>'
+            :'<span class="badge bok"><span class="bd"></span>OK</span>'}
+          ${isMaint?'<span class="maint-badge">MAINT</span>':''}
+          <span class="badge" style="background:${catColor}18;color:${catColor};border-color:${catColor}44">${f.category||'other'}</span>
+        </div>
+      </div>
+      <div class="fix-card-body">
+        <div class="fix-card-row">
+          <span class="fix-card-label">Bulb Type</span>
+          <span class="fix-card-val">${f.bulbType||'—'}</span>
+        </div>
+        <div class="fix-card-row">
+          <span class="fix-card-label">Current Bulb</span>
+          <span>${bulbLabel}</span>
+        </div>
+        <div class="fix-card-row">
+          <span class="fix-card-label">Last Outage</span>
+          <span class="fix-card-val">${lastOut[f.id]?ago(lastOut[f.id]):'Never'}</span>
+        </div>
+        <div class="fix-card-row">
+          <span class="fix-card-label">Total Outages</span>
+          <span class="fix-card-val" style="color:${outageCount>3?'var(--red)':outageCount>0?'var(--amber)':'var(--green)'}">${outageCount}</span>
+        </div>
+        <div class="fix-card-row">
+          <span class="fix-card-label">Last Maint</span>
+          <span class="fix-card-val" style="color:${f.lastMaint?'var(--green)':'var(--red)'}">${f.lastMaint?ago(f.lastMaint):'Never'}</span>
+        </div>
+      </div>
+      <div class="fix-card-foot">
+        <button class="btn br bsm" onclick="openOutModal('${f.id}')">🔴 Out</button>
+        ${isOut?`<button class="btn bg bsm" onclick="openRepModal('${f.id}')">✅ Fix</button>`:''}
+        <button class="btn bgh bsm" onclick="viewFixture('${f.id}')">👁 View</button>
+        <button class="btn bgh bsm" data-perm="admin" onclick="editFixture('${f.id}')">✏️</button>
+        <button class="btn bgh bsm" onclick="markMaintDone('${f.id}')">🔧</button>
+        <button class="btn bgh bsm" data-perm="master" onclick="requirePin(()=>deleteFixture('${f.id}'))">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
   applyPermissions();
 }
 function viewFixture(id){
@@ -2992,40 +3097,92 @@ function deleteFixture(id){
 
 // ── Inventory ──
 function renderInv(){
-  document.getElementById('stockTbl').innerHTML=!db.inventory.length
-    ?'<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:28px">No inventory yet</td></tr>'
-    :db.inventory.map(i=>{
-      const low=i.inStock<=i.threshold;
-      const uses=db.usageLog.filter(u=>u.bulbType===i.bulbType);
-      const avgLife=uses.length>=2?'~'+Math.round(uses.reduce((s,u,_,a)=>s+1/a.length,0)*30)+'d':'—';
-      return`<tr>
-        <td><strong>${i.bulbType}</strong></td>
-        <td><strong style="font-size:18px;color:${low?'var(--red)':'var(--green)'}">${i.inStock}</strong></td>
-        <td>${i.threshold}</td><td>${i.totalReceived}</td><td>${i.totalUsed}</td>
-        <td class="dim">${avgLife}</td>
-        <td>${low?'<span class="badge blow"><span class="bd pulse"></span>LOW</span>':'<span class="badge bok"><span class="bd"></span>OK</span>'}</td>
-        <td><div class="row gap6">
-          <button class="btn bgh bsm" data-perm="admin" onclick="openEditInv('${i.bulbType.replace(/'/g,"\\'")}')">✏️</button>
-          <button class="btn bgh bsm" data-perm="master" onclick="requirePin(()=>deleteInvRow('${i.bulbType.replace(/'/g,"\\'")}'))">🗑️</button>
-        </div></td>
-      </tr>`;}).join('');
+  const totalBulbs=db.inventory.reduce((s,i)=>s+i.inStock,0);
+  const lowCount=db.inventory.filter(i=>i.inStock<=i.threshold).length;
+  const totalTypes=db.inventory.length;
+  const totalUsed=db.inventory.reduce((s,i)=>s+(i.totalUsed||0),0);
+
+  // Stat strip
+  const strip=document.getElementById('inv-stats-strip');
+  if(strip) strip.innerHTML=`
+    <div class="sc ca"><div class="sc-label">Bulb Types</div><div class="sc-val">${totalTypes}</div></div>
+    <div class="sc cb"><div class="sc-label">Total In Stock</div><div class="sc-val">${totalBulbs}</div></div>
+    <div class="sc ${lowCount?'cr':'cg'}"><div class="sc-label">Low Stock</div><div class="sc-val">${lowCount}</div></div>
+    <div class="sc cp"><div class="sc-label">Total Used</div><div class="sc-val">${totalUsed}</div></div>`;
+
+  // Stock cards
+  const stockCards=document.getElementById('stockCards');
+  if(stockCards){
+    if(!db.inventory.length){
+      stockCards.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:48px 0;color:var(--dim2)"><div style="font-size:40px;margin-bottom:12px">\u{1F4E6}</div><div style="font-family:var(--head);font-size:14px;font-weight:700">No inventory yet</div><div class="dim" style="margin-top:6px">Receive a batch to get started</div></div>';
+    } else {
+      stockCards.innerHTML=db.inventory.map(i=>{
+        const low=i.inStock<=i.threshold;
+        const uses=db.usageLog.filter(u=>u.bulbType===i.bulbType);
+        const avgLife=uses.length>=2?'~'+Math.round(uses.reduce((s,u,_,a)=>s+1/a.length,0)*30)+'d':'\u2014';
+        const pct=i.threshold>0?Math.min(100,Math.round((i.inStock/Math.max(i.threshold*2,i.inStock))*100)):50;
+        const barColor=low?'#A32D2D':pct>60?'#3B6D11':'#BA7517';
+        const safeType=i.bulbType.replace(/'/g,"\\'");
+        return`<div class="stock-card ${low?'low':'ok'}">
+          <div class="stock-card-head">
+            <div class="stock-card-type">${i.bulbType}</div>
+            <div>${low
+              ?'<span class="badge blow"><span class="bd pulse"></span>LOW</span>'
+              :'<span class="badge bok"><span class="bd"></span>OK</span>'}</div>
+          </div>
+          <div class="stock-card-body">
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+              <span style="font-size:38px;font-weight:900;font-family:var(--head);color:${low?'var(--red)':'var(--green)'};line-height:1">${i.inStock}</span>
+              <span class="dim">in stock</span>
+              <span class="dim" style="margin-left:auto">min: ${i.threshold}</span>
+            </div>
+            <div class="stock-bar-wrap">
+              <div class="stock-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px">
+              <div style="text-align:center;background:var(--s2);border-radius:6px;padding:6px 4px">
+                <div class="dim" style="font-size:8px;letter-spacing:1px;margin-bottom:2px">RECEIVED</div>
+                <div style="font-family:var(--mono);font-size:13px;font-weight:700">${i.totalReceived||0}</div>
+              </div>
+              <div style="text-align:center;background:var(--s2);border-radius:6px;padding:6px 4px">
+                <div class="dim" style="font-size:8px;letter-spacing:1px;margin-bottom:2px">USED</div>
+                <div style="font-family:var(--mono);font-size:13px;font-weight:700">${i.totalUsed||0}</div>
+              </div>
+              <div style="text-align:center;background:var(--s2);border-radius:6px;padding:6px 4px">
+                <div class="dim" style="font-size:8px;letter-spacing:1px;margin-bottom:2px">AVG LIFE</div>
+                <div style="font-family:var(--mono);font-size:13px;font-weight:700">${avgLife}</div>
+              </div>
+            </div>
+          </div>
+          <div class="stock-card-foot">
+            <button class="btn bgh bsm" data-perm="admin" onclick="openEditInv('${safeType}')">\u270F\uFE0F Edit</button>
+            <button class="btn bgh bsm" data-perm="master" onclick="requirePin(()=>deleteInvRow('${safeType}'))">\uD83D\uDDD1\uFE0F</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // Orders table
   document.getElementById('ordersTbl').innerHTML=!db.orders.length
     ?'<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:28px">No orders yet</td></tr>'
     :[...db.orders].sort((a,b)=>b.date-a.date).map(o=>`<tr>
         <td class="dim">${fmtD(o.date)}</td><td>${o.bulbType}</td><td><strong>${o.qty}</strong></td>
-        <td>${o.supplier||'—'}</td><td>${o.tech||'—'}</td><td class="dim">${o.notes||'—'}</td>
+        <td>${o.supplier||'\u2014'}</td><td>${o.tech||'\u2014'}</td><td class="dim">${o.notes||'\u2014'}</td>
       </tr>`).join('');
+
+  // Usage table
   document.getElementById('usageTbl').innerHTML=!db.usageLog.length
     ?'<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:28px">No usage logged yet</td></tr>'
     :[...db.usageLog].sort((a,b)=>b.date-a.date).map(u=>{
-      const condIcon=u.bulbCondition==='blown'?'💀 Blown':'✅ New';
-      const mismatchTag=u.mismatch?'<span style="color:var(--amber);font-size:10px;display:block">⚠️ type mismatch</span>':'';
+      const condIcon=u.bulbCondition==='blown'?'\uD83D\uDC80 Blown':'\u2705 New';
+      const mismatchTag=u.mismatch?'<span style="color:var(--amber);font-size:10px;display:block">\u26A0\uFE0F type mismatch</span>':'';
       const condCol=u.bulbCondition==='blown'?'var(--red)':'var(--green)';
       return`<tr>
         <td class="dim">${fmtD(u.date)}</td><td>${u.bulbType}</td><td><strong>${u.qty}</strong></td>
-        <td class="mono">${u.fixture}</td><td>${u.tech||'—'}</td>
-        <td class="mono" style="font-size:11px">${u.bulbId||'—'}</td>
-        <td style="color:${condCol};font-size:12px;font-weight:600">${u.bulbCondition?condIcon:'—'}${mismatchTag}</td>
+        <td class="mono">${u.fixture}</td><td>${u.tech||'\u2014'}</td>
+        <td class="mono" style="font-size:11px">${u.bulbId||'\u2014'}</td>
+        <td style="color:${condCol};font-size:12px;font-weight:600">${u.bulbCondition?condIcon:'\u2014'}${mismatchTag}</td>
       </tr>`;}).join('');
   applyPermissions();
 }
@@ -3389,6 +3546,13 @@ function updTechUI(){
   const banner=document.getElementById('whoBanner');
   if(t){banner.style.display='';document.getElementById('bannerAv').textContent=t.avatar||'👤';document.getElementById('bannerName').textContent=t.name;const roleLabel=t.userRole==='master'?'👑 Master Admin':t.userRole==='admin'?'🔑 User Admin':'👤 '+t.role||'Technician';document.getElementById('bannerRole').textContent=roleLabel;}
   else banner.style.display='none';
+  // Sidebar footer
+  const sfAv=document.getElementById('sfAvatar');
+  const sfNm=document.getElementById('sfName');
+  const sfRl=document.getElementById('sfRole');
+  if(sfAv) sfAv.textContent=t?(t.avatar||'👤'):'👤';
+  if(sfNm) sfNm.textContent=t?t.name:'Not logged in';
+  if(sfRl) sfRl.textContent=t?(t.userRole==='master'?'👑 Master Admin':t.userRole==='admin'?'🔑 Admin':(t.role||'Crew')):'';
 }
 function buildTechGrid(cid,key){
   const el=document.getElementById(cid);if(!el)return;
@@ -5140,7 +5304,7 @@ function handleURLScan(){
 // ══════════════════════════════════════════════════
 function initTheme(){
   applyTheme();
-  const saved=localStorage.getItem('slt_theme')||'light';
+  const saved=localStorage.getItem('slt_theme')||'dark';
   if(saved==='light') document.body.classList.add('light-mode');
   document.documentElement.classList.remove('light-mode'); // clean up early class
   updateThemeBtn();
@@ -6826,8 +6990,8 @@ function toggleDark(){
   if(btn) btn.textContent = isDark ? '☀️ Light' : '🌙 Dark';
 }
 function applyTheme(){
-  let theme = 'light';
-  try{ theme = localStorage.getItem('kcc_theme') || 'light'; }catch(e){}
+  let theme = 'dark';
+  try{ theme = localStorage.getItem('kcc_theme') || 'dark'; }catch(e){}
   if(theme === 'dark'){
     document.body.classList.add('dark-mode');
     const btn = document.getElementById('darkToggle');
