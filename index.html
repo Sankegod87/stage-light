@@ -2402,24 +2402,39 @@ window._onRemoteData=function(r){
   db.signoffs=r.signoffs||db.signoffs||{};
   db.trainingModules=r.trainingModules||db.trainingModules||[];
   lsave();
-  // If login screen is visible, rebuild grid with fresh Firebase data
+  // Try to resume a saved session now that Firebase has loaded real crew data
   const loginVisible = document.getElementById('loginScreen')?.style.display === 'flex';
-  if(loginVisible && !_lsSelectedId) buildLsGrid();
-  // If a session was resumed and the tech now exists in Firebase data, keep them logged in
-  if(_techId){
-    const stillExists = db.technicians.some(t=>t.id===_techId);
-    if(!stillExists){
-      // Tech no longer in DB — force logout
-      _techId=null;
-      try{localStorage.removeItem(TECH_KEY);}catch(e){}
-      buildLsGrid();showLoginScreen();return;
+  if(!_techId){
+    // Check if there's a saved session we can now validate against real crew data
+    const savedId = (()=>{ try{ return localStorage.getItem(TECH_KEY); }catch(e){ return null; } })();
+    if(savedId && db.technicians.some(t=>t.id===savedId)){
+      // Valid session found — auto log in, skip login screen
+      _techId = savedId;
+      updTechUI();
+      applyPermissions();
+      const ls=document.getElementById('loginScreen');
+      const hs=document.getElementById('homeScreen');
+      if(ls) ls.style.display='none';
+      if(hs) hs.style.display='none';
+      go('dashboard');
+      checkScheduleEmails();
+      return;
     }
-    updTechUI();applyPermissions();
-    refreshPage();checkScheduleEmails();
-  } else {
-    // No one logged in — just rebuild login grid with fresh crew data
+    // No valid session — rebuild grid with fresh crew and stay on login
     if(loginVisible) buildLsGrid();
+    else { buildLsGrid(); showLoginScreen(); }
+    return;
   }
+  // Someone is already logged in — verify they still exist
+  const stillExists = db.technicians.some(t=>t.id===_techId);
+  if(!stillExists){
+    _techId=null;
+    try{localStorage.removeItem(TECH_KEY);}catch(e){}
+    buildLsGrid();showLoginScreen();return;
+  }
+  updTechUI();applyPermissions();
+  if(loginVisible) buildLsGrid();
+  else { refreshPage();checkScheduleEmails(); }
 };
 async function save(){
   lsave();
@@ -2880,6 +2895,7 @@ function renderFix(){
           <button class="btn bgh bsm" data-perm="master" onclick="requirePin(()=>deleteFixture('${f.id}'))">🗑️</button>
         </div></td>
       </tr>`).join('');
+  applyPermissions();
 }
 function viewFixture(id){
   const f=db.fixtures.find(x=>x.id===id);if(!f)return;
@@ -3010,6 +3026,7 @@ function renderInv(){
         <td class="mono" style="font-size:11px">${u.bulbId||'—'}</td>
         <td style="color:${condCol};font-size:12px;font-weight:600">${u.bulbCondition?condIcon:'—'}${mismatchTag}</td>
       </tr>`;}).join('');
+  applyPermissions();
 }
 // ── Used Bulbs ──
 let _aubCamScanner=null,_aubCamRunning=false;
@@ -3234,6 +3251,8 @@ function renderCrew(){
           <td>${rep}</td><td>${rpl}</td><td class="dim">${avgResp}</td><td class="dim">${times.length?ago(times[0]):'Never'}</td>
         </tr>`;
       }).join('');
+  // Re-apply permissions so dynamically rendered data-perm buttons are shown/hidden
+  applyPermissions();
 }
 
 // ── Settings ──
@@ -4602,6 +4621,7 @@ function renderShowLog(){
       </div>
     </div>`;
   }).join('');
+  applyPermissions();
 }
 
 function openM_addShow(){
@@ -5343,23 +5363,10 @@ applyTheme();
 loadTech();
 handleURLScan();
 applyPermissions();
-// Always check auth on boot — never show the app without a logged-in user
-(function(){
-  const savedId = (()=>{ try{ return localStorage.getItem(TECH_KEY); }catch(e){ return null; } })();
-  if(savedId && db.technicians.some(t=>t.id===savedId)){
-    // Valid saved session — resume straight to dashboard
-    _techId = savedId;
-    updTechUI();
-    applyPermissions();
-    go('dashboard');
-  } else {
-    // No session or tech no longer exists — always show login
-    _techId = null;
-    try{ localStorage.removeItem(TECH_KEY); }catch(e){}
-    buildLsGrid();
-    showLoginScreen();
-  }
-})();
+// Always show login on boot — session is resumed in _onRemoteData once Firebase loads
+// (db.technicians is empty at this point — Firebase hasn't synced yet)
+buildLsGrid();
+showLoginScreen();
 
 // Show "Add to Home Screen" tip once on mobile
 if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
@@ -6071,6 +6078,7 @@ function renderCheckout(){
       '</div>';
     }).join('');
   }
+  applyPermissions();
 }
 
 // ── MAINTENANCE ───────────────────────────────────────────
@@ -6114,8 +6122,8 @@ function maintSetTab(tab,btn){
   document.querySelectorAll('#pg-maintenance .tab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
   renderMaintenance();
+  applyPermissions();
 }
-
 // ── RENDER MAINTENANCE ────────────────────────────────────
 function renderMaintenance(){
   if(!db.gearItems)db.gearItems=[];
@@ -6189,6 +6197,7 @@ function renderMaintenance(){
       (logs.length>1?'<div style="margin-top:8px;font-size:11px;font-family:var(--mono);color:var(--dim2)">'+logs.length+' service records</div>':'')+
     '</div>';
   }).join('');
+  applyPermissions();
 }
 
 // ── Wire openM for checkout/maint to pre-populate selects ─
@@ -6275,8 +6284,8 @@ function _updateReqBadge(){
   const open=(db.techRequests||[]).filter(r=>r.status==='open'||r.status==='progress').length;
   const badge=document.getElementById('req-badge');
   if(badge){badge.style.display=open?'':'none';badge.textContent=open;}
-}
-function renderRequests(){
+  applyPermissions();
+}function renderRequests(){
   if(!db.techRequests)db.techRequests=[];
   _updateReqBadge();
   // Stats
@@ -6715,8 +6724,8 @@ function renderProfiles(){
 
     '</div>'+
   '</div>';
-}
-function _deptAvatarColor(dept){
+  applyPermissions();
+}function _deptAvatarColor(dept){
   return {Lighting:'#0F6E56',Audio:'#185FA5',Cameras:'#854F0B',IT:'#5F5E5A'}[dept]||'#888780';
 }
 
