@@ -825,6 +825,12 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <div id="ls-noUsers" style="display:none">
         <p style="font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.3);line-height:1.6">No crew members yet. Ask your admin to add you in the Crew section.</p>
       </div>
+      <!-- First-run bootstrap — shown only when zero crew exist -->
+      <div id="ls-firstRun" style="display:none;margin-top:16px;background:rgba(15,110,86,.1);border:0.5px solid rgba(15,110,86,.3);border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:600;color:#9FE1CB;margin-bottom:6px">👋 First time setup</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.4);font-family:var(--mono);line-height:1.6;margin-bottom:12px">No crew members yet. Create the first Master Admin account to get started.</div>
+        <button onclick="openFirstRunSetup()" style="background:#0F6E56;border:none;border-radius:8px;padding:10px 16px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--head);width:100%">+ Create Master Admin Account</button>
+      </div>
 
       <div class="ls-footer">
         <span class="ls-sync-dot" id="ls-sync-dot"></span>
@@ -2461,12 +2467,15 @@ function hideLoginScreen(){
 function buildLsGrid(){
   const grid = document.getElementById('ls-userGrid');
   const noUsers = document.getElementById('ls-noUsers');
+  const firstRun = document.getElementById('ls-firstRun');
   if(!db.technicians.length){
-    grid.innerHTML = '';
-    if(noUsers) noUsers.style.display = '';
+    if(grid) grid.innerHTML = '';
+    if(noUsers) noUsers.style.display = 'none';
+    if(firstRun) firstRun.style.display = '';
     return;
   }
   if(noUsers) noUsers.style.display = 'none';
+  if(firstRun) firstRun.style.display = 'none';
   grid.innerHTML = db.technicians.map(t=>{
     const roleLabel = t.userRole==='master'?'👑 Master':t.userRole==='admin'?'🔑 Admin':'';
     const deptColor = {Lighting:'#5DCAA5',Audio:'#85B7EB',Cameras:'#EF9F27',IT:'#B4B2A9'}[t.dept]||'rgba(255,255,255,.3)';
@@ -6814,6 +6823,44 @@ function applyTheme(){
   }
 }
 
+// ── First-run bootstrap ───────────────────────────────────
+function openFirstRunSetup(){
+  ['fr-name','fr-email','fr-role','fr-pw','fr-pw2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const av=document.getElementById('fr-avatar');if(av)av.value='👑';
+  openM('firstRun');
+}
+function saveFirstRun(){
+  const name=(document.getElementById('fr-name').value||'').trim();
+  const pw=document.getElementById('fr-pw').value;
+  const pw2=document.getElementById('fr-pw2').value;
+  if(!name){toast('Name required','error');return;}
+  if(!pw){toast('Password required','error');return;}
+  if(pw!==pw2){toast('Passwords do not match','error');return;}
+  if(db.technicians.length>0){toast('Crew already exists — use normal Add Technician','error');closeM('firstRun');return;}
+  const newMaster={
+    id:'t'+Date.now(),
+    name,
+    role:(document.getElementById('fr-role').value||'Technical Director').trim(),
+    avatar:(document.getElementById('fr-avatar').value||'👑').trim(),
+    email:(document.getElementById('fr-email').value||'').trim(),
+    passwordHash:simpleHash(pw),
+    canSchedule:true,
+    userRole:'master',
+    dept:'',notes:'',training:[],completedModules:[],certs:[]
+  };
+  db.technicians.push(newMaster);
+  save();
+  closeM('firstRun');
+  // Auto log in as the new master
+  _techId=newMaster.id;
+  try{localStorage.setItem(TECH_KEY,newMaster.id);}catch(e){}
+  updTechUI();applyPermissions();
+  hideLoginScreen();
+  showHomeScreen();
+  toast('Welcome '+name+'! You are now the Master Admin.','success');
+  buildLsGrid();
+}
+
 // Auto-go to check-in page if URL has ?checkin=1
 (function(){
   if(new URLSearchParams(window.location.search).get('checkin')==='1'){
@@ -7193,6 +7240,30 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="mf">
       <button class="btn bgh" onclick="closeM('addCert')">Cancel</button>
       <button class="btn ba" onclick="saveCert()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- First-run Master Admin setup modal -->
+<div id="m-firstRun" class="mover" style="display:none;z-index:2000" onclick="mOut(event,'firstRun')">
+  <div class="modal">
+    <div class="mh"><span class="mt">👑 Create Master Admin</span><button class="xb" onclick="closeM('firstRun')">✕</button></div>
+    <div class="mb">
+      <div style="background:rgba(15,110,86,.1);border:0.5px solid rgba(15,110,86,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--dim);font-family:var(--mono);line-height:1.6">
+        This is the first account — it will be set as Master Admin with full access to all settings and crew management.
+      </div>
+      <div class="fgrid">
+        <div class="fg"><label>Full name *</label><input id="fr-name" placeholder="Your full name"></div>
+        <div class="fg"><label>Avatar emoji</label><input id="fr-avatar" placeholder="👑" maxlength="2" value="👑"></div>
+        <div class="fg"><label>Email</label><input id="fr-email" type="email" placeholder="your@email.com"></div>
+        <div class="fg"><label>Role / Title</label><input id="fr-role" placeholder="Technical Director"></div>
+        <div class="fg"><label>Password *</label><input id="fr-pw" type="password" placeholder="Choose a strong password"></div>
+        <div class="fg"><label>Confirm password *</label><input id="fr-pw2" type="password" placeholder="Repeat password"></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bgh" onclick="closeM('firstRun')">Cancel</button>
+      <button class="btn ba" onclick="saveFirstRun()">Create Account →</button>
     </div>
   </div>
 </div>
