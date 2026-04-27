@@ -91,6 +91,8 @@ initFirebase();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- SheetJS (XLSX import) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 
@@ -1085,6 +1087,11 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3"/></svg>
       Settings
     </button>
+    <button class="snav-btn" onclick="openChangelog()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+      What's New
+      <span class="snav-badge" id="changelog-badge" style="display:none;background:#0F6E56">NEW</span>
+    </button>
   </div>
   <div class="sidebar-footer">
     <div class="sf-avatar" id="sfAvatar">👤</div>
@@ -1211,6 +1218,8 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
         <option value="ok">✅ OK Only</option>
         <option value="maint">🔧 Maint Due</option>
       </select>
+      <button class="btn bgh" data-perm="admin" onclick="downloadImportTemplate('fixtures')">📄 Template</button>
+      <button class="btn bgh" data-perm="admin" onclick="openImportModal('fixtures')">⬆️ Import</button>
       <button class="btn ba" data-perm="admin" onclick="openM('addFixture')">+ Add Fixture</button>
     </div>
   </div>
@@ -1233,6 +1242,8 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
     <div class="row gap8">
       <button class="btn bgh" onclick="printLabels()">🖨️ Labels</button>
       <button class="btn bgh" onclick="exportCSV('inventory')">⬇️ Export</button>
+      <button class="btn bgh" data-perm="admin" onclick="downloadImportTemplate('inventory')">📄 Template</button>
+      <button class="btn bgh" data-perm="admin" onclick="openImportModal('inventory')">⬆️ Import</button>
       <button class="btn br bsm" data-perm="master" onclick="requirePin(clearAllInventory)" style="font-size:10px">🗑️</button>
       <button class="btn ba" data-perm="admin" onclick="openM('receiveBulbs')">+ Receive Batch</button>
     </div>
@@ -1496,6 +1507,8 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <div class="dim" style="margin-top:4px">Track who has what gear and when it's due back</div>
     </div>
     <div class="row gap8">
+      <button class="btn bgh" data-perm="admin" onclick="downloadImportTemplate('gear')">📄 Template</button>
+      <button class="btn bgh" data-perm="admin" onclick="openImportModal('gear')">⬆️ Import Gear</button>
       <button class="btn ba" data-perm="admin" onclick="openM('addGearItem')">+ Add Gear Item</button>
       <button class="btn bb" onclick="openM('checkoutGear')">📤 Check Out</button>
     </div>
@@ -1854,6 +1867,11 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
 
     <!-- Self check-in panel -->
     <div id="ci-selfPanel" style="display:none;background:var(--s1);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">
+      <!-- Briefing notes for this Sunday (if any) -->
+      <div id="ci-briefingBanner" style="display:none;background:#E1F5EE;border:1px solid #9FE1CB;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-family:var(--mono);font-size:9px;color:#085041;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">📋 Pre-Show Briefing</div>
+        <div id="ci-briefingText" style="font-size:13px;color:#085041;line-height:1.6"></div>
+      </div>
       <div style="font-family:var(--mono);font-size:9px;color:var(--dim2);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Your Check-In</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
         <div style="font-size:34px;flex-shrink:0;" id="ci-myAvatar">👤</div>
@@ -2005,6 +2023,22 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <div class="fg mb14">
         <label>Notes / Special Instructions</label>
         <textarea id="schedNotes" placeholder="e.g. Full production, extra hands needed..." style="min-height:60px"></textarea>
+      </div>
+
+      <!-- Pre-show briefing notes -->
+      <div class="fg mb14">
+        <label>📋 Pre-Show Briefing Notes <span style="font-size:9px;color:var(--dim2);letter-spacing:0;text-transform:none;font-family:var(--mono)">(shown to crew at check-in)</span></label>
+        <textarea id="schedBriefing" placeholder="e.g. Sermon series: Grace & Truth. Song list in ProPresenter folder. Camera 2 has loose cable — check before service. Call time 8:00 AM sharp." style="min-height:80px"></textarea>
+      </div>
+
+      <!-- Recurring template controls -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:6px;margin-bottom:14px">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase;flex-shrink:0">Templates</span>
+        <select id="schedTemplateSelect" style="flex:1;min-width:120px;font-size:11px;padding:5px 8px">
+          <option value="">— Load a template —</option>
+        </select>
+        <button class="btn bgh bsm" onclick="loadScheduleTemplate()">Load</button>
+        <button class="btn ba bsm" onclick="saveScheduleTemplate()">💾 Save as Template</button>
       </div>
 
       <!-- Emails auto-send every Thursday -->
@@ -2459,6 +2493,8 @@ window._onRemoteData=function(r){
   db.announcements=r.announcements||db.announcements||[];
   db.signoffs=r.signoffs||db.signoffs||{};
   db.trainingModules=r.trainingModules||db.trainingModules||[];
+  // Schedule templates
+  if(r.settings&&r.settings.scheduleTemplates) db.settings.scheduleTemplates=r.settings.scheduleTemplates;
   lsave();
   // Try to resume a saved session now that Firebase has loaded real crew data
   const loginVisible = document.getElementById('loginScreen')?.style.display === 'flex';
@@ -4275,6 +4311,266 @@ function exportCSV(type='history'){
   toast('CSV exported','success');
 }
 
+
+// ══════════════════════════════════════════════════
+// ⬆️  SPREADSHEET IMPORT  (CSV + XLSX)
+// ══════════════════════════════════════════════════
+let _importType = '';
+let _importRows = [];
+let _importQueue = [];
+let _importConflictRow = null;
+let _importOverwriteAll = false;
+let _importSkipAll = false;
+
+const IMPORT_SCHEMA = {
+  fixtures: {
+    hint: 'Required: <b>Fixture ID, Name, Bulb Type, Location</b> &nbsp;|&nbsp; Optional: Status, Department, Notes',
+    idField: 'id',
+    rowToObj(r){
+      return {
+        id:   (r['Fixture ID']||'').toString().toUpperCase().trim(),
+        name: (r['Name']||'').toString().trim(),
+        bulbType: (r['Bulb Type']||'').toString().trim(),
+        location: (r['Location']||'').toString().trim(),
+        status: (r['Status']||'ok').toString().toLowerCase().trim(),
+        dept: (r['Department']||'').toString().trim(),
+        notes: (r['Notes']||'').toString().trim(),
+        added: Date.now()
+      };
+    },
+    findDup(obj){ return (db.fixtures||[]).find(f=>f.id===obj.id); },
+    applyToDb(obj, overwrite){
+      const idx=(db.fixtures||[]).findIndex(f=>f.id===obj.id);
+      if(idx>=0){ if(overwrite) db.fixtures[idx]={...db.fixtures[idx],...obj}; }
+      else { db.fixtures.push(obj); }
+    }
+  },
+  gear: {
+    hint: 'Required: <b>Item Name, Asset ID</b> &nbsp;|&nbsp; Optional: Category, Department, Notes, Service Interval (days), Last Serviced (YYYY-MM-DD)',
+    idField: 'assetId',
+    rowToObj(r){
+      return {
+        id: 'gear_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+        name: (r['Item Name']||'').toString().trim(),
+        assetId: (r['Asset ID']||'').toString().toUpperCase().trim(),
+        category: (r['Category']||'Other').toString().trim(),
+        dept: (r['Department']||'').toString().trim(),
+        notes: (r['Notes']||'').toString().trim(),
+        serviceInterval: parseInt(r['Service Interval'])||90,
+        lastService: (r['Last Serviced']||'').toString().trim(),
+        addedAt: Date.now()
+      };
+    },
+    findDup(obj){ return (db.gearItems||[]).find(g=>g.assetId&&g.assetId===obj.assetId); },
+    applyToDb(obj, overwrite){
+      const idx=(db.gearItems||[]).findIndex(g=>g.assetId&&g.assetId===obj.assetId);
+      if(idx>=0){ if(overwrite) db.gearItems[idx]={...db.gearItems[idx],...obj}; }
+      else { if(!db.gearItems)db.gearItems=[]; db.gearItems.push(obj); }
+    }
+  },
+  inventory: {
+    hint: 'Required: <b>Bulb Type, In Stock</b> &nbsp;|&nbsp; Optional: Threshold, Total Received, Total Used, Notes',
+    idField: 'bulbType',
+    rowToObj(r){
+      return {
+        bulbType: (r['Bulb Type']||'').toString().trim(),
+        inStock:  parseInt(r['In Stock'])||0,
+        threshold:parseInt(r['Threshold'])||5,
+        totalReceived:parseInt(r['Total Received'])||0,
+        totalUsed: parseInt(r['Total Used'])||0,
+        notes: (r['Notes']||'').toString().trim()
+      };
+    },
+    findDup(obj){ return (db.inventory||[]).find(i=>i.bulbType===obj.bulbType); },
+    applyToDb(obj, overwrite){
+      const idx=(db.inventory||[]).findIndex(i=>i.bulbType===obj.bulbType);
+      if(idx>=0){ if(overwrite) db.inventory[idx]={...db.inventory[idx],...obj}; }
+      else { db.inventory.push(obj); }
+    }
+  }
+};
+
+function openImportModal(type){
+  _importType = type;
+  resetImportModal();
+  const titles = { fixtures:'Import Fixtures', inventory:'Import Bulb Inventory' };
+  document.getElementById('importModalTitle').textContent = 'IMPORT — ' + (titles[type]||type).toUpperCase();
+  const schema = IMPORT_SCHEMA[type];
+  const hint = document.getElementById('importColHint');
+  hint.innerHTML = schema.hint;
+  hint.style.display = 'block';
+  openM('importSheet');
+}
+
+function resetImportModal(){
+  _importRows=[];_importQueue=[];_importConflictRow=null;
+  _importOverwriteAll=false;_importSkipAll=false;
+  document.getElementById('importFileInput').value='';
+  document.getElementById('importPreviewWrap').style.display='none';
+  document.getElementById('importConflictBox').style.display='none';
+  document.getElementById('importProgress').style.display='none';
+  document.getElementById('importStartBtn').style.display='none';
+  document.getElementById('importDropZone').style.display='';
+  document.getElementById('importRowCount').textContent='0';
+}
+
+function handleImportDrop(e){
+  e.preventDefault();
+  const dz=document.getElementById('importDropZone');
+  dz.style.borderColor='var(--border2)';dz.style.background='var(--s2)';
+  const file=e.dataTransfer.files[0];
+  if(file) handleImportFile(file);
+}
+
+async function handleImportFile(file){
+  if(!file) return;
+  const name=file.name.toLowerCase();
+  let rows=[];
+  try {
+    if(name.endsWith('.csv')){
+      const text=await file.text();
+      rows=parseCSVToObjects(text);
+    } else if(name.endsWith('.xlsx')){
+      rows=await parseXLSXToObjects(file);
+    } else {
+      toast('Unsupported file. Use .csv or .xlsx','error'); return;
+    }
+  } catch(err){
+    toast('Failed to parse file: '+err.message,'error'); return;
+  }
+  if(!rows.length){ toast('No data rows found in file','error'); return; }
+  _importRows=rows;
+  renderImportPreview(rows);
+}
+
+function parseCSVToObjects(text){
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2) return [];
+  const headers=lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).filter(l=>l.trim()).map(line=>{
+    const vals=[];
+    let cur='',inQ=false;
+    for(let c of line){
+      if(c==='"'){inQ=!inQ;}
+      else if(c===','&&!inQ){vals.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    vals.push(cur.trim());
+    const obj={};
+    headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').replace(/^"|"$/g,'').trim(); });
+    return obj;
+  });
+}
+
+async function parseXLSXToObjects(file){
+  return new Promise((resolve,reject)=>{
+    if(typeof XLSX==='undefined'){ reject(new Error('XLSX library not loaded')); return; }
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const data=XLSX.utils.sheet_to_json(ws,{defval:''});
+        resolve(data);
+      }catch(err){reject(err);}
+    };
+    reader.onerror=()=>reject(new Error('File read error'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function renderImportPreview(rows){
+  if(!rows.length) return;
+  const headers=Object.keys(rows[0]);
+  const thead=document.getElementById('importPreviewHead');
+  const tbody=document.getElementById('importPreviewBody');
+  thead.innerHTML='<tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr>';
+  tbody.innerHTML=rows.slice(0,20).map(r=>
+    '<tr>'+headers.map(h=>'<td style="font-family:var(--mono);font-size:11px">'+(r[h]??'')+'</td>').join('')+'</tr>'
+  ).join('');
+  document.getElementById('importRowCount').textContent=rows.length+(rows.length>20?' (showing first 20)':'');
+  document.getElementById('importPreviewWrap').style.display='';
+  document.getElementById('importStartBtn').style.display='';
+  document.getElementById('importDropZone').style.display='none';
+}
+
+async function startImport(){
+  const schema=IMPORT_SCHEMA[_importType];
+  if(!schema||!_importRows.length){ toast('No data to import','error'); return; }
+  _importQueue=_importRows.map(r=>schema.rowToObj(r)).filter(o=>o[schema.idField]);
+  if(!_importQueue.length){ toast('No valid rows found (check required columns)','error'); return; }
+  document.getElementById('importStartBtn').style.display='none';
+  document.getElementById('importPreviewWrap').style.display='none';
+  document.getElementById('importColHint').style.display='none';
+  document.getElementById('importProgress').style.display='';
+  _importOverwriteAll=false; _importSkipAll=false;
+  await processImportQueue();
+}
+
+async function processImportQueue(){
+  const schema=IMPORT_SCHEMA[_importType];
+  const total=_importQueue.length;
+  let done=0, imported=0, skipped=0;
+  while(_importQueue.length>0){
+    const row=_importQueue[0];
+    const dup=schema.findDup(row);
+    if(dup && !_importOverwriteAll && !_importSkipAll){
+      _importConflictRow=row;
+      showConflict(row, schema);
+      return;
+    }
+    const skip = _importSkipAll && !!dup;
+    if(!skip){ schema.applyToDb(row, true); imported++; }
+    else { skipped++; }
+    _importQueue.shift();
+    done++;
+    const pct=Math.round((done/total)*100);
+    document.getElementById('importProgressBar').style.width=pct+'%';
+    document.getElementById('importProgressTxt').textContent=done+' / '+total;
+    await new Promise(r=>setTimeout(r,20));
+  }
+  save(); refreshPage();
+  closeM('importSheet');
+  toast('Import complete — '+imported+' added/updated, '+skipped+' skipped','success');
+}
+
+function showConflict(row, schema){
+  const idVal=row[schema.idField]||'?';
+  document.getElementById('importConflictMsg').textContent='"'+idVal+'" already exists in your data. What would you like to do?';
+  document.getElementById('importConflictBox').style.display='';
+}
+
+async function resolveConflict(action){
+  document.getElementById('importConflictBox').style.display='none';
+  const schema=IMPORT_SCHEMA[_importType];
+  const row=_importQueue[0];
+  if(action==='overwrite'){
+    schema.applyToDb(row,true); _importQueue.shift();
+  } else if(action==='skip'){
+    _importQueue.shift();
+  } else if(action==='overwrite-all'){
+    _importOverwriteAll=true; _importSkipAll=false;
+  } else if(action==='skip-all'){
+    _importSkipAll=true; _importOverwriteAll=false;
+  }
+  await processImportQueue();
+}
+
+function downloadImportTemplate(type){
+  const templates={
+    fixtures:'Fixture ID,Name,Bulb Type,Location,Status,Department,Notes\nFX-001,Front Wash Left,PAR64 1000W,Stage Left,ok,Lighting,\nFX-002,Front Wash Right,PAR64 1000W,Stage Right,ok,Lighting,',
+    inventory:'Bulb Type,In Stock,Threshold,Total Received,Total Used,Notes\nPAR64 1000W,10,5,20,10,\nLED PAR,6,3,8,2,',
+    gear:'Item Name,Asset ID,Category,Department,Notes,Service Interval,Last Serviced\nCanon XA55 Camera,CAM-001,Camera,Cameras,Main broadcast cam,90,2024-01-15\nShure SM58,MIC-001,Audio,Audio,Lead vocal mic,180,2024-03-01\nMacBook Pro 16,LAP-001,Computer,IT,Presentation laptop,365,'
+  };
+  const csv=templates[type]||'';
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='kcc-'+type+'-template.csv';
+  a.click();
+  toast('Template downloaded','success');
+}
+
 // ── Reset ──
 function resetAllData(){
   if(!isMaster()){toast('Master admin only','error');return;}
@@ -4622,6 +4918,7 @@ function renderSchedule(){
               : (!isPast&&canEdit?`<div class="dim" style="font-size:12px">Tap to assign crew</div>`:`<div class="dim" style="font-size:12px">No crew assigned</div>`)
             }
             ${entry&&entry.notes?`<div style="font-size:11px;color:var(--dim2);font-family:var(--mono);margin-top:4px;font-style:italic">${entry.notes}</div>`:''}
+            ${entry&&entry.briefing?`<div style="font-size:11px;color:#0F6E56;font-family:var(--mono);margin-top:4px;padding:4px 8px;background:#E1F5EE;border-radius:4px">📋 ${entry.briefing.length>80?entry.briefing.slice(0,80)+'…':entry.briefing}</div>`:''}
           </div>`;
         }).join('')}
       </div>
@@ -4638,8 +4935,15 @@ function openScheduleEdit(key, el){
   document.getElementById('schedModalTitle').textContent = '📅 ' + date.toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   document.getElementById('schedModalDate').textContent = date.toLocaleDateString('en-CA',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
 
-  const entry = db.schedules[key] || {crew:[],roles:{},notes:''};
+  const entry = db.schedules[key] || {crew:[],roles:{},notes:'',briefing:''};
   document.getElementById('schedNotes').value = entry.notes||'';
+  document.getElementById('schedBriefing').value = entry.briefing||'';
+  // Populate templates dropdown
+  const tplSel = document.getElementById('schedTemplateSelect');
+  if(tplSel){
+    const tpls = db.settings.scheduleTemplates||[];
+    tplSel.innerHTML = '<option value="">— Load a template —</option>' + tpls.map((t,i)=>`<option value="${i}">${t.name}</option>`).join('');
+  }
 
   // Build crew assignment grid
   const grid = document.getElementById('schedCrewGrid');
@@ -4700,6 +5004,7 @@ function saveScheduleEntry(){
   if(!canEditSchedule()){ toast('No permission','error'); return; }
   const entry = db.schedules[_schedEditKey] || {crew:[],roles:{},notes:''};
   entry.notes = document.getElementById('schedNotes').value.trim();
+  entry.briefing = document.getElementById('schedBriefing').value.trim();
   if(!entry.roles) entry.roles = {};
   (entry.crew||[]).forEach(id=>{
     const roleEl = document.getElementById('schedrole-'+id);
@@ -4712,6 +5017,50 @@ function saveScheduleEntry(){
   toast('Schedule saved','success');
 
   // Emails auto-send every Thursday — no manual send needed
+}
+
+function saveScheduleTemplate(){
+  if(!canEditSchedule()){toast('No permission','error');return;}
+  const name = prompt('Template name (e.g. "Normal Sunday", "Big Production"):','');
+  if(!name||!name.trim()) return;
+  const entry = db.schedules[_schedEditKey]||{crew:[],roles:{},notes:'',briefing:''};
+  if(!db.settings.scheduleTemplates) db.settings.scheduleTemplates=[];
+  db.settings.scheduleTemplates.push({
+    name:name.trim(),
+    crew:[...(entry.crew||[])],
+    roles:{...(entry.roles||{})},
+    notes:entry.notes||'',
+    briefing:entry.briefing||''
+  });
+  save();
+  // Refresh dropdown
+  const tplSel=document.getElementById('schedTemplateSelect');
+  if(tplSel){
+    const tpls=db.settings.scheduleTemplates||[];
+    tplSel.innerHTML='<option value="">— Load a template —</option>'+tpls.map((t,i)=>`<option value="${i}">${t.name}</option>`).join('');
+  }
+  toast('Template "'+name.trim()+'" saved!','success');
+}
+
+function loadScheduleTemplate(){
+  const sel=document.getElementById('schedTemplateSelect');
+  if(!sel||sel.value===''){toast('Select a template first','info');return;}
+  const tpls=db.settings.scheduleTemplates||[];
+  const tpl=tpls[parseInt(sel.value)];
+  if(!tpl){toast('Template not found','error');return;}
+  // Apply crew from template (only crew that still exist)
+  const validCrew=(tpl.crew||[]).filter(id=>db.technicians.find(t=>t.id===id));
+  const entry=db.schedules[_schedEditKey]||{crew:[],roles:{},notes:'',briefing:''};
+  entry.crew=validCrew;
+  entry.roles={...(tpl.roles||{})};
+  entry.notes=tpl.notes||entry.notes;
+  entry.briefing=tpl.briefing||entry.briefing;
+  db.schedules[_schedEditKey]=entry;
+  document.getElementById('schedNotes').value=entry.notes;
+  document.getElementById('schedBriefing').value=entry.briefing;
+  // Rebuild crew grid
+  openScheduleEdit(_schedEditKey,null);
+  toast('Template "'+tpl.name+'" loaded!','success');
 }
 
 async function sendScheduleEmails(dateKey, entry){
@@ -4835,8 +5184,103 @@ function deleteShow(id){
 }
 
 // ══════════════════════════════════════════════════
-// CUSTOMIZABLE SCHEDULE ROLES
+// CHANGELOG / WHAT'S NEW
 // ══════════════════════════════════════════════════
+const CHANGELOG = [
+  {
+    version: 'v2.5 — Phase 1 Update',
+    date: 'Apr 2026',
+    items: [
+      '📋 Pre-show Briefing Notes — attach crew briefings to each Sunday schedule, visible on the schedule card',
+      '📅 Schedule Templates — save and re-load crew templates (e.g. "Normal Sunday", "Big Production")',
+      '🕐 What\'s New — this changelog! See what\'s been added to the app',
+      '📢 Announcements — now supports pinned posts and department targeting',
+    ]
+  },
+  {
+    version: 'v2.4 — Attendance & Check-in',
+    date: 'Mar 2026',
+    items: [
+      '✅ QR self check-in for crew members',
+      '📊 Attendance tracking with session history',
+      '🔒 Admin-gated attendance view',
+      '🏆 Leaderboard with attendance streaks',
+    ]
+  },
+  {
+    version: 'v2.3 — Crew Profiles & Training',
+    date: 'Feb 2026',
+    items: [
+      '👤 Crew profiles with certs and skills',
+      '📚 Training Hub with modules and completion tracking',
+      '🏅 Certification badges per crew member',
+    ]
+  },
+  {
+    version: 'v2.2 — Gear & Operations',
+    date: 'Jan 2026',
+    items: [
+      '📦 Asset checkout tracking',
+      '🔧 Maintenance log for all gear',
+      '📝 Tech requests system',
+      '📢 Team announcements feed',
+    ]
+  },
+  {
+    version: 'v2.1 — Role-Based Access',
+    date: 'Dec 2025',
+    items: [
+      '👑 Master Admin / User Admin / Regular User roles',
+      '🔑 Password-protected login per crew member',
+      '🛡️ Permission-gated features',
+    ]
+  },
+  {
+    version: 'v2.0 — KCC Technical Rebrand',
+    date: 'Nov 2025',
+    items: [
+      '🎨 Full rebrand from Stage Light Tracker to KCC Technical',
+      '🌙 Dark mode support',
+      '📱 PWA — install on iPhone and Android',
+    ]
+  },
+];
+
+const CHANGELOG_SEEN_KEY = 'kcc_changelog_seen';
+
+function openChangelog(){
+  const listEl = document.getElementById('changelog-list');
+  if(listEl){
+    listEl.innerHTML = CHANGELOG.map((entry, i) => `
+      <div style="padding:16px 20px;${i < CHANGELOG.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:var(--head);font-weight:700;font-size:14px;color:var(--text)">${entry.version}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--dim2)">${entry.date}</div>
+        </div>
+        <ul style="margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px">
+          ${entry.items.map(item => `<li style="font-size:13px;color:var(--text);line-height:1.5;display:flex;gap:8px;align-items:flex-start"><span style="flex-shrink:0;margin-top:1px">${item.slice(0,2)}</span><span>${item.slice(2)}</span></li>`).join('')}
+        </ul>
+      </div>`
+    ).join('');
+  }
+  // Mark as seen
+  try { localStorage.setItem(CHANGELOG_SEEN_KEY, CHANGELOG[0].version); } catch(e){}
+  const badge = document.getElementById('changelog-badge');
+  if(badge) badge.style.display = 'none';
+  document.getElementById('m-changelog').style.display = 'flex';
+}
+
+function checkChangelogBadge(){
+  try {
+    const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
+    const badge = document.getElementById('changelog-badge');
+    if(badge && seen !== CHANGELOG[0].version) badge.style.display = '';
+  } catch(e){}
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(checkChangelogBadge, 1000);
+});
 const DEFAULT_ROLES=[
   {name:'Camera Station',icon:'📷'},
   {name:'Streaming Station',icon:'🖥️'},
@@ -5947,6 +6391,19 @@ function renderCheckin(){
     const crew=_attCrew(s);const onRoster=crew.some(c=>c.id===tech.id);
     if(onRoster){
       selfPanel.style.display='';
+      // Show briefing notes for this Sunday
+      const briefingBanner = document.getElementById('ci-briefingBanner');
+      const briefingText = document.getElementById('ci-briefingText');
+      if(briefingBanner && briefingText){
+        const sessKey = s.id; // session id matches schedule key for Sunday sessions
+        const schedEntry = db.schedules[sessKey];
+        if(schedEntry && schedEntry.briefing){
+          briefingText.textContent = schedEntry.briefing;
+          briefingBanner.style.display = '';
+        } else {
+          briefingBanner.style.display = 'none';
+        }
+      }
       document.getElementById('ci-myAvatar').textContent=tech.avatar||'👤';
       document.getElementById('ci-myName').textContent=tech.name;
       document.getElementById('ci-myRole').textContent=tech.role||'Technician';
@@ -6529,13 +6986,33 @@ function deleteAnnouncement(id){
   db.announcements=(db.announcements||[]).filter(x=>x.id!==id);
   save();renderAnnouncements();toast('Deleted','info');
 }
+function annReact(annId, emoji){
+  const tech = getCurTech();
+  if(!tech){toast('Log in to react','info');return;}
+  const ann = (db.announcements||[]).find(a=>a.id===annId);
+  if(!ann) return;
+  if(!ann.reactions) ann.reactions = {};
+  if(!ann.reactions[emoji]) ann.reactions[emoji] = [];
+  const idx = ann.reactions[emoji].indexOf(tech.id);
+  if(idx === -1) ann.reactions[emoji].push(tech.id);
+  else ann.reactions[emoji].splice(idx, 1);
+  save(); renderAnnouncements();
+}
 function renderAnnouncements(){
   if(!db.announcements)db.announcements=[];
   const listEl=document.getElementById('ann-list');if(!listEl)return;
   const sorted=[...(db.announcements||[])].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)||(b.createdAt-a.createdAt));
   if(!sorted.length){listEl.innerHTML=`<div style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:10px">📢</div><div class="dim">No announcements yet</div>${isAdmin()?`<button class="btn ba bsm" style="margin-top:12px" onclick="openM('addAnnouncement')">+ Post First Announcement</button>`:''}</div>`;return;}
+  const REACT_EMOJIS = ['👍','❤️','🙏','🔥','✅'];
+  const curTech = getCurTech();
   listEl.innerHTML=sorted.map(a=>{
     const deptB=a.dept?deptBadge(a.dept):'<span class="badge blow">All depts</span>';
+    const reactions = a.reactions || {};
+    const reactHTML = REACT_EMOJIS.map(emoji => {
+      const who = reactions[emoji] || [];
+      const iMine = curTech && who.includes(curTech.id);
+      return `<button onclick="annReact('${a.id}','${emoji}')" style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;border:1px solid ${iMine?'var(--amber)':'var(--border)'};background:${iMine?'var(--aglow)':'transparent'};cursor:pointer;font-size:12px;font-family:var(--mono);color:${iMine?'var(--amber)':'var(--dim2)'};transition:all .15s">${emoji}${who.length?' '+who.length:''}</button>`;
+    }).join('');
     return'<div class="ann-card'+(a.pinned?' pinned':'')+'">'+
       '<div class="row jbet mb8">'+
         '<div class="row gap6">'+
@@ -6544,7 +7021,8 @@ function renderAnnouncements(){
         '</div>'+
         deptB+
       '</div>'+
-      '<div style="font-size:14px;line-height:1.6;color:var(--text);margin-bottom:8px">'+a.body+'</div>'+
+      '<div style="font-size:14px;line-height:1.6;color:var(--text);margin-bottom:10px">'+a.body+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+reactHTML+'</div>'+
       '<div class="dim">'+a.author+' · '+fmtDate(a.createdAt)+
         (isAdmin()?`&nbsp;<button onclick="deleteAnnouncement('${a.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;font-family:var(--mono)">delete</button>`:'')+
       '</div>'+
@@ -7420,6 +7898,66 @@ document.addEventListener('DOMContentLoaded', function(){
   </div>
 </div>
 
+<!-- ══ Spreadsheet Import Modal ══ -->
+<div id="m-importSheet" class="mover" style="display:none" onclick="mOut(event,'importSheet')">
+  <div class="modal wide">
+    <div class="mh">
+      <span class="mt" id="importModalTitle">⬆️ Import Assets</span>
+      <button class="xb" onclick="closeM('importSheet')">✕</button>
+    </div>
+    <div class="mb">
+      <!-- Drop zone -->
+      <div id="importDropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:32px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:16px;background:var(--s2)"
+           onclick="document.getElementById('importFileInput').click()"
+           ondragover="event.preventDefault();this.style.borderColor='#0F6E56';this.style.background='#E1F5EE'"
+           ondragleave="this.style.borderColor='var(--border2)';this.style.background='var(--s2)'"
+           ondrop="handleImportDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px">📊</div>
+        <div style="font-family:var(--head);font-weight:700;font-size:13px;color:var(--text);margin-bottom:4px">Drop your spreadsheet here</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--dim2)">Supports .csv and .xlsx — or click to browse</div>
+        <input type="file" id="importFileInput" accept=".csv,.xlsx" style="display:none" onchange="handleImportFile(this.files[0])">
+      </div>
+      <!-- Column hint -->
+      <div id="importColHint" style="font-family:var(--mono);font-size:10px;color:var(--dim2);background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:14px;display:none"></div>
+      <!-- Preview table -->
+      <div id="importPreviewWrap" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-family:var(--head);font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--dim2)">Preview — <span id="importRowCount">0</span> rows</div>
+          <button class="btn bgh bsm" onclick="resetImportModal()">✕ Clear</button>
+        </div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;max-height:280px;overflow-y:auto">
+          <table class="tbl" id="importPreviewTbl">
+            <thead id="importPreviewHead"></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Conflict resolution for current duplicate -->
+      <div id="importConflictBox" style="display:none;margin-top:16px;background:#FFF8E1;border:1px solid #F5C842;border-radius:10px;padding:16px">
+        <div style="font-family:var(--head);font-weight:700;font-size:13px;color:#7A5800;margin-bottom:6px">⚠️ Duplicate Found</div>
+        <div id="importConflictMsg" style="font-family:var(--mono);font-size:11px;color:#7A5800;margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" style="background:#7A5800;color:#fff" onclick="resolveConflict('overwrite')">Overwrite existing</button>
+          <button class="btn bgh" onclick="resolveConflict('skip')">Skip this row</button>
+          <button class="btn bgh" onclick="resolveConflict('overwrite-all')" style="font-size:10px">Overwrite all remaining</button>
+          <button class="btn bgh" onclick="resolveConflict('skip-all')" style="font-size:10px">Skip all remaining</button>
+        </div>
+      </div>
+      <!-- Progress -->
+      <div id="importProgress" style="display:none;margin-top:14px">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--dim2);margin-bottom:6px">Importing… <span id="importProgressTxt">0 / 0</span></div>
+        <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden">
+          <div id="importProgressBar" style="height:100%;background:#0F6E56;border-radius:3px;width:0%;transition:width .3s"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bgh" onclick="closeM('importSheet')">Cancel</button>
+      <button class="btn ba" id="importStartBtn" onclick="startImport()" style="display:none">⬆️ Import Rows</button>
+    </div>
+  </div>
+</div>
+
 <!-- First-run Master Admin setup modal -->
 <div id="m-firstRun" class="mover" style="display:none;z-index:2000" onclick="mOut(event,'firstRun')">
   <div class="modal">
@@ -7440,6 +7978,18 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="mf">
       <button class="btn bgh" onclick="closeM('firstRun')">Cancel</button>
       <button class="btn ba" onclick="saveFirstRun()">Create Account →</button>
+    </div>
+  </div>
+</div>
+<!-- ══ Changelog / What's New Modal ══ -->
+<div id="m-changelog" class="mover" style="display:none" onclick="if(event.target===this)closeM('changelog')">
+  <div class="modal" style="max-width:560px">
+    <div class="mh"><span class="mt">🕐 What's New in KCC Technical</span><button class="xb" onclick="closeM('changelog')">✕</button></div>
+    <div class="mb" style="padding:0">
+      <div id="changelog-list" style="padding:0"></div>
+    </div>
+    <div class="mf">
+      <button class="btn ba" onclick="closeM('changelog')">Got it!</button>
     </div>
   </div>
 </div>
