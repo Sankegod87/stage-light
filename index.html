@@ -1617,30 +1617,6 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
   </div>
   <div id="audit-list"></div>
 </div>
-  <div class="row jbet mb14">
-    <div>
-      <h2 class="fw9 tu ls2" style="font-size:14px">Asset Checkout</h2>
-      <div class="dim" style="margin-top:4px">Track who has what gear and when it's due back</div>
-    </div>
-    <div class="row gap8">
-      <button class="btn bgh" data-perm="admin" onclick="downloadImportTemplate('gear')">📄 Template</button>
-      <button class="btn bgh" data-perm="admin" onclick="openImportModal('gear')">⬆️ Import Gear</button>
-      <button class="btn ba" data-perm="admin" onclick="openM('addGearItem')">+ Add Gear Item</button>
-      <button class="btn bb" onclick="openM('checkoutGear')">📤 Check Out</button>
-    </div>
-  </div>
-  <!-- Summary cards -->
-  <div class="stats" style="margin-bottom:16px" id="co-stats"></div>
-  <!-- Filter tabs -->
-  <div class="tabs" id="co-tabs">
-    <button class="tab active" onclick="coSetTab('active',this)">Checked Out</button>
-    <button class="tab" onclick="coSetTab('returned',this)">Returned</button>
-    <button class="tab" onclick="coSetTab('gear',this)">Gear Library</button>
-    <button class="tab" onclick="coSetTab('incidents',this)">⚠️ Incidents</button>
-  </div>
-  <div id="co-list"></div>
-</div>
-
 <div id="pg-checkout" style="display:none">
   <div class="row jbet mb14">
     <div>
@@ -2641,6 +2617,19 @@ window._onRemoteData=function(r){
   // Stage 3-5 collections — restore from Firebase if present, else keep existing or default
   db.gearItems=r.gearItems||db.gearItems||[];
   db.checkouts=r.checkouts||db.checkouts||[];
+  // Deduplicate: for each gear item, keep only the newest active checkout
+  (function dedupeCheckouts(){
+    const seen={};
+    db.checkouts.forEach(c=>{
+      if(c.returnedAt) return;
+      if(!seen[c.gearId]||c.checkedOutAt>seen[c.gearId].checkedOutAt){
+        if(seen[c.gearId]){seen[c.gearId].returnedAt=Date.now();seen[c.gearId].returnNotes='[auto-closed: duplicate checkout record]';}
+        seen[c.gearId]=c;
+      } else {
+        c.returnedAt=Date.now();c.returnNotes='[auto-closed: duplicate checkout record]';
+      }
+    });
+  })();
   db.maintLogs=r.maintLogs||db.maintLogs||[];
   db.techRequests=r.techRequests||db.techRequests||[];
   db.announcements=r.announcements||db.announcements||[];
@@ -7073,7 +7062,16 @@ function maintStatus(item){
   if(age > interval*0.8) return {status:'due-soon',label:'Due in '+(interval-age)+' days',color:'#BA7517'};
   return {status:'ok',label:'Serviced '+age+' days ago',color:'#639922'};
 }
-function activeCheckout(gearId){ return (db.checkouts||[]).find(c=>c.gearId===gearId&&!c.returnedAt); }
+function activeCheckout(gearId){
+  const active=(db.checkouts||[]).filter(c=>c.gearId===gearId&&!c.returnedAt);
+  if(active.length<=1) return active[0]||null;
+  // Duplicate active checkouts detected — keep the newest, auto-close the rest silently
+  active.sort((a,b)=>b.checkedOutAt-a.checkedOutAt);
+  const [keep,...dupes]=active;
+  dupes.forEach(c=>{c.returnedAt=Date.now();c.returnCondition='unknown';c.returnNotes='[auto-closed: duplicate checkout record]';});
+  save();
+  return keep;
+}
 function isOverdue(co){ return co.dueDate && !co.returnedAt && Date.now() > co.dueDate; }
 window._coTab = 'active';
 window._maintTab = 'due';
