@@ -10,7 +10,7 @@
   }
 })();
 </script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>KCC Technical</title>
 
 <!-- PWA -->
@@ -78,6 +78,12 @@ function initFirebase() {
       if (snap.exists()) {
         const remote = snap.data();
         if (remote && remote.payload) {
+          // Skip echo snapshots fired from our own save (nonce match = our write bouncing back)
+          if (remote.nonce && remote.nonce === _lastSaveNonce) {
+            syncUI("ok", "Live sync ✓"); clearTimeout(_connTimeout);
+            const _lsDot=document.getElementById('ls-sync-dot');if(_lsDot)_lsDot.style.background='#5DCAA5';
+            return;
+          }
           // Wait for _onRemoteData to be ready (timing fix)
           const applyData = () => {
             try { window._onRemoteData(JSON.parse(remote.payload)); } catch(e) { console.warn('Firebase data parse error', e); }
@@ -113,9 +119,15 @@ function initFirebase() {
     syncUI("error", "Firebase init failed");
   }
 }
+let _lastSaveNonce = null;
 window._saveToFirebase = async (data) => {
   if (!_firebaseReady || !window._fbDoc) return false;
-  try { await setDoc(window._fbDoc(), { payload: JSON.stringify(data), updatedAt: serverTimestamp() }); return true; }
+  try {
+    const nonce = Date.now() + '_' + Math.random().toString(36).slice(2);
+    _lastSaveNonce = nonce;
+    await setDoc(window._fbDoc(), { payload: JSON.stringify(data), nonce, updatedAt: serverTimestamp() });
+    return true;
+  }
   catch(e) { return false; }
 };
 initFirebase();
@@ -381,55 +393,107 @@ textarea { resize:vertical; min-height:70px; }
 
 /* ── Mobile ── */
 @media(max-width:768px){
+  /* ── Layout ── */
   #appSidebar { display:none !important; }
   #appContent { margin-left:0; }
   #appTopbar { display:none; }
   .dash-2col { grid-template-columns:1fr !important; }
-  #bottomNav { display:flex !important; position:fixed; bottom:0; left:0; right:0; z-index:120; background:rgba(255,255,255,.97); border-top:1px solid var(--border); backdrop-filter:blur(12px); padding:6px 0 env(safe-area-inset-bottom,6px); }
+
+  /* ── Bottom nav ── */
+  #bottomNav { display:flex !important; position:fixed; bottom:0; left:0; right:0; z-index:120; background:rgba(255,255,255,.97); border-top:1px solid var(--border); backdrop-filter:blur(12px); padding:8px 0 env(safe-area-inset-bottom,8px); }
   body.dark-mode #bottomNav { background:rgba(22,27,34,.97); }
-  .bnn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; background:none; border:none; color:var(--dim2); cursor:pointer; font-family:var(--head); font-size:9px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:4px 2px; transition:color .15s; min-width:0; }
-  .bnn .bni { font-size:18px; line-height:1; }
+  .bnn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; background:none; border:none; color:var(--dim2); cursor:pointer; font-family:var(--head); font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:6px 2px; transition:color .15s; min-width:0; min-height:52px; }
+  .bnn .bni { font-size:22px; line-height:1; }
   .bnn.active { color:#0F6E56; }
   .bnn span { display:block; }
-  #fabScan { bottom:74px !important; right:16px !important; width:50px !important; height:50px !important; font-size:22px !important; }
-  #syncBar { padding:3px 12px; font-size:9px; }
-  main { padding:12px 10px 120px; }
+
+  /* ── FAB + sync ── */
+  #fabScan { bottom:80px !important; right:16px !important; width:54px !important; height:54px !important; font-size:24px !important; }
+  #syncBar { padding:4px 14px; font-size:11px; }
+
+  /* ── Page & cards ── */
+  body { font-size:16px; }
+  main { padding:14px 12px 130px; }
   .grid2,.grid3 { grid-template-columns:1fr; }
-  .stats { grid-template-columns:repeat(2,1fr); gap:8px; }
-  .sc-val { font-size:28px; }
+  .stats { grid-template-columns:repeat(2,1fr); gap:10px; }
+  .sc { padding:14px 16px; }
+  .sc-label { font-size:11px; letter-spacing:1px; }
+  .sc-val { font-size:32px; }
   .panel>div,.panel { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  .tbl { min-width:480px; font-size:12px; }
-  .tbl th,.tbl td { padding:8px 10px; }
+
+  /* ── Tables ── */
+  .tbl { min-width:480px; font-size:14px; }
+  .tbl th { font-size:11px; padding:10px 12px; }
+  .tbl td { padding:12px 12px; font-size:14px; }
+
+  /* ── Buttons — minimum 44px touch target ── */
+  .btn { padding:11px 16px; font-size:13px; min-height:44px; }
+  .bsm { padding:9px 13px; font-size:12px; min-height:40px; }
+
+  /* ── Badges & labels ── */
+  .badge { font-size:11px; padding:4px 10px; }
+  label { font-size:11px; letter-spacing:1px; }
+  input,select,textarea { font-size:16px; padding:12px 14px; } /* 16px prevents iOS/Android zoom-on-focus */
+
+  /* ── Tabs ── */
+  .tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; flex-wrap:nowrap; }
+  .tab { white-space:nowrap; padding:11px 14px; font-size:13px; }
+
+  /* ── Modals — slide up from bottom ── */
   .mover { padding:0; align-items:flex-end; }
   .modal { max-width:100% !important; width:100%; max-height:92vh; border-radius:16px 16px 0 0; animation:slideUp .25s ease-out; }
   @keyframes slideUp { from{transform:translateY(100%)} to{transform:none} }
-  .mb { padding:14px; } .mh { padding:12px 14px; } .mf { padding:10px 14px; }
+  .mb { padding:16px; } .mh { padding:14px 16px; } .mf { padding:12px 16px; }
+  .mt { font-size:16px; }
   .fgrid { grid-template-columns:1fr; }
-  .tpg { grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); }
-  .tpb { padding:10px 6px; } .tav { font-size:24px; }
-  .tcards { grid-template-columns:1fr; }
-  .tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; flex-wrap:nowrap; }
-  .tab { white-space:nowrap; padding:9px 10px; font-size:11px; }
   .mf { flex-direction:row; } .mf .btn { flex:1; justify-content:center; }
+
+  /* ── Tech picker ── */
+  .tpg { grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); }
+  .tpb { padding:12px 8px; font-size:14px; } .tav { font-size:26px; }
+  .tcards { grid-template-columns:1fr; }
+
+  /* ── PIN ── */
   .pin-box { padding:20px; min-width:0; width:100%; max-width:320px; }
-  .pin-key { padding:12px; font-size:18px; }
-  .row.gap6 { flex-wrap:wrap; gap:4px; }
+  .pin-key { padding:14px; font-size:20px; min-height:54px; }
+
+  /* ── Misc ── */
+  .row.gap6 { flex-wrap:wrap; gap:6px; }
   #statsRow { grid-template-columns:repeat(2,1fr); }
   #pg-scan>div { max-width:100% !important; }
-  #toasts { left:10px; right:10px; } .toast { max-width:100%; }
+  #toasts { left:10px; right:10px; } .toast { max-width:100%; font-size:14px; }
+  .dim { font-size:12px; }
+
+  /* ── Login ── */
   #loginScreen { align-items:flex-start !important; padding-top:max(20px,env(safe-area-inset-top,20px)) !important; padding-bottom:40px !important; }
   #loginScreen>div { width:100%; max-width:420px; margin:auto; }
+  .ls-user-btn { padding:14px 8px; }
+  .ls-uname { font-size:13px; }
+  .ls-av { font-size:28px; }
+
+  /* ── Checklist / check-in ── */
   #checklistLayout { grid-template-columns:1fr !important; }
-  .ci-sess-tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:12px; }
-  .ci-sess-tab { padding:10px 6px; font-size:12px; border-radius:8px; }
-  #ci-adminBar { border-radius:10px; margin-bottom:12px; }
-  .ci-btn-row { display:grid !important; grid-template-columns:1fr 1fr; gap:8px !important; }
-  .ci-btn-row .btn { flex:unset !important; padding:14px 8px !important; font-size:13px !important; justify-content:center; border-radius:10px; }
+  .ci-sess-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .ci-sess-tab { padding:12px 8px; font-size:14px; border-radius:10px; }
+  #ci-adminBar { border-radius:10px; margin-bottom:14px; }
+  .ci-btn-row { display:grid !important; grid-template-columns:1fr 1fr; gap:10px !important; }
+  .ci-btn-row .btn { flex:unset !important; padding:14px 8px !important; font-size:14px !important; justify-content:center; border-radius:10px; min-height:50px; }
   .ci-btn-row .btn:last-child:nth-child(3) { grid-column:1/-1; }
-  #ci-myStatus { font-size:10px !important; padding:3px 8px !important; text-align:center; white-space:normal !important; line-height:1.4; }
-  #ci-rosterList li { padding:10px 12px !important; }
+  #ci-myStatus { font-size:12px !important; padding:4px 10px !important; text-align:center; white-space:normal !important; line-height:1.4; }
+  #ci-rosterList li { padding:12px 14px !important; font-size:14px; }
+
+  /* ── Gear / checkout cards ── */
+  .co-card { padding:14px; gap:10px; }
+  .req-card,.ann-card,.maint-card { padding:14px 16px; }
+  .profile-header { padding:16px 14px; }
+  .lb-row { padding:14px 16px; }
 }
-@media(max-width:360px) { .stats,#statsRow{grid-template-columns:repeat(2,1fr);} .bnn .bni{font-size:16px;} .bnn{font-size:8px;} }
+@media(max-width:360px) {
+  .stats,#statsRow { grid-template-columns:repeat(2,1fr); }
+  .bnn .bni { font-size:20px; }
+  .bnn { font-size:10px; }
+  main { padding:12px 10px 120px; }
+}
 @media(min-width:769px) { #bottomNav{display:none !important;} }
 
 /* ── Stage 2: Department system ── */
@@ -892,8 +956,8 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
           <rect x="0" y="30" width="5"  height="6" rx="2.5" fill="rgba(255,255,255,0.28)"/>
         </svg>
       </div>
-      <div class="ls-wordmark">KCC Technical</div>
-      <div class="ls-sub">Crew Portal</div>
+      <div class="ls-wordmark" id="ls-wordmark">KCC Technical</div>
+      <div class="ls-sub" id="ls-tagline">Crew Portal</div>
 
       <!-- Step dots -->
       <div class="ls-steps" id="ls-step-dots">
@@ -1291,7 +1355,7 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       <div class="dim" style="margin-top:3px">All lighting fixtures and their current status</div>
     </div>
     <div class="row gap8">
-      <select id="fixFilter" onchange="renderFix()" style="width:auto;padding:7px 12px;font-size:11px;border-radius:8px;border:1px solid var(--border2);background:var(--s1);color:var(--text);font-family:var(--mono)">
+      <select id="fixFilter" onchange="if(window._fixTab==='list')renderFix()" style="width:auto;padding:7px 12px;font-size:11px;border-radius:8px;border:1px solid var(--border2);background:var(--s1);color:var(--text);font-family:var(--mono)">
         <option value="all">All Fixtures</option>
         <option value="out">🔴 Out Only</option>
         <option value="ok">✅ OK Only</option>
@@ -1304,10 +1368,56 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
   </div>
   <!-- Summary stat strip -->
   <div id="fix-stats-strip" class="stats mb16"></div>
-  <!-- Fixture cards grid -->
-  <div id="fixtCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
-  <!-- Hidden tbody still needed by renderFix JS — kept invisible -->
-  <table style="display:none"><tbody id="fixtTbl"></tbody></table>
+  <!-- View tabs -->
+  <div class="tabs" style="margin-bottom:14px">
+    <button class="tab active" id="fixtab-list" onclick="setFixTab('list',this)">📋 List</button>
+    <button class="tab" id="fixtab-map" onclick="setFixTab('map',this)">🗺️ Map</button>
+  </div>
+  <!-- List view -->
+  <div id="fix-list-view">
+    <div id="fixtCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+    <table style="display:none"><tbody id="fixtTbl"></tbody></table>
+  </div>
+  <!-- Map view -->
+  <div id="fix-map-view" style="display:none">
+    <div style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <!-- Map toolbar -->
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase">Venue Map</span>
+        <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap" id="map-toolbar">
+          <div style="display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--dim2)">
+            <span style="width:10px;height:10px;border-radius:50%;background:#3B6D11;display:inline-block"></span>OK
+            <span style="width:10px;height:10px;border-radius:50%;background:#A32D2D;display:inline-block;margin-left:6px"></span>OUT
+            <span style="width:10px;height:10px;border-radius:50%;background:#BA7517;display:inline-block;margin-left:6px"></span>MAINT
+            <span style="width:10px;height:10px;border-radius:50%;background:#888;display:inline-block;margin-left:6px"></span>UNPLACED
+          </div>
+          <button class="btn bgh bsm" onclick="mapZoom(1.2)">＋</button>
+          <button class="btn bgh bsm" onclick="mapZoom(0.8)">－</button>
+          <button class="btn bgh bsm" onclick="mapResetView()">⤢ Fit</button>
+          <button class="btn bgh bsm" data-perm="admin" onclick="openMapZoneEditor()">🏗️ Zones</button>
+          <button class="btn bgh bsm" data-perm="admin" id="map-unplaced-btn" onclick="toggleUnplacedPanel()" style="display:none"></button>
+        </div>
+      </div>
+      <!-- Canvas wrapper -->
+      <div id="map-canvas-wrap" style="position:relative;overflow:hidden;height:520px;background:#f8f9fa;cursor:grab;user-select:none">
+        <svg id="map-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="map-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e8eaed" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <g id="map-grid-layer"><rect width="4000" height="4000" x="-2000" y="-2000" fill="url(#map-grid)"/></g>
+          <g id="map-zones-layer"></g>
+          <g id="map-fixtures-layer"></g>
+        </svg>
+        <!-- Unplaced fixtures tray -->
+        <div id="map-unplaced-tray" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.96);border-top:1px solid var(--border);padding:10px 14px;max-height:140px;overflow-y:auto">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Drag onto map to place · <span id="unplaced-count"></span></div>
+          <div id="unplaced-fixtures-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ── INVENTORY ── -->
@@ -1760,28 +1870,92 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
     <button class="btn bgh themeToggleBtn" onclick="toggleTheme()">☀️ Light Mode</button>
   </div>
   <div class="grid2">
-    <div class="panel">
-      <div class="ph"><span class="pt">🔒 Admin PIN</span></div>
+
+    <!-- ── Branding ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">🏷️ Branding</span></div>
       <div class="pb">
-        <p class="dim mb12">Protect Reset and Delete actions with a 4-digit PIN. Leave blank to disable PIN protection.</p>
-        <div class="fg mb12"><label>Current PIN (4 digits)</label><input type="password" id="currentPin" placeholder="Enter current PIN or leave blank" maxlength="4"></div>
-        <div class="fg mb12"><label>New PIN (4 digits, leave blank to remove)</label><input type="password" id="newPin" placeholder="New 4-digit PIN" maxlength="4"></div>
-        <button class="btn ba" data-perm="admin" onclick="savePin()">Save PIN</button>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="ph"><span class="pt">🔔 Push Notifications</span></div>
-      <div class="pb">
-        <p class="dim mb12">Get browser notifications when a fixture goes out or stock runs low — even when the app isn't open.</p>
-        <div id="notifStatus" class="mb12"></div>
-        <button class="btn bb" onclick="requestNotifPermission()">Enable Notifications</button>
+        <p class="dim mb12">Customize the app name and logo emoji shown on the login screen and sidebar.</p>
+        <div class="fgrid" style="grid-template-columns:1fr 80px">
+          <div class="fg mb12"><label>Organization Name</label><input id="s-orgName" placeholder="e.g. KCC Technical"></div>
+          <div class="fg mb12"><label>Logo Emoji</label><input id="s-orgEmoji" placeholder="⚡" style="text-align:center;font-size:20px" maxlength="2"></div>
+        </div>
+        <div class="fg mb12"><label>Tagline / Subtitle (optional)</label><input id="s-orgTagline" placeholder="e.g. Production & Lighting Team"></div>
+        <button class="btn ba" onclick="saveBranding()">Save Branding</button>
       </div>
     </div>
 
+    <!-- ── Accent Colour ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">🎨 Accent Colour</span></div>
+      <div class="pb">
+        <p class="dim mb12">Change the primary colour used for buttons, badges, and highlights throughout the app.</p>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px" id="s-colourSwatches"></div>
+        <div class="row gap8 mb12">
+          <div class="fg" style="flex:1"><label>Custom Hex</label><input id="s-accentHex" placeholder="#0F6E56" maxlength="7" oninput="previewAccent(this.value)"></div>
+          <div style="width:42px;height:42px;border-radius:8px;margin-top:22px;border:1px solid var(--border2)" id="s-accentPreview"></div>
+        </div>
+        <button class="btn ba" onclick="saveAccentColour()">Apply Colour</button>
+      </div>
+    </div>
+
+    <!-- ── Dashboard Widgets ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">📊 Dashboard Widgets</span></div>
+      <div class="pb">
+        <p class="dim mb12">Choose which stat cards and panels appear on the dashboard.</p>
+        <div id="s-widgetToggles" style="display:flex;flex-direction:column;gap:10px"></div>
+        <button class="btn ba" style="margin-top:14px" onclick="saveWidgetPrefs()">Save Widgets</button>
+      </div>
+    </div>
+
+    <!-- ── Gear Categories ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">📦 Gear Categories</span></div>
+      <div class="pb">
+        <p class="dim mb12">Categories available when adding gear items to the asset library.</p>
+        <div id="s-gearCatsEl" style="margin-bottom:12px"></div>
+        <div class="row gap8">
+          <input id="s-newGearCat" placeholder="e.g. Cables, Backline, Rigging…" style="flex:1">
+          <button class="btn ba bsm" onclick="addGearCat()">+ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Departments ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">🏢 Departments</span></div>
+      <div class="pb">
+        <p class="dim mb12">Departments crew members can be assigned to.</p>
+        <div id="s-deptsEl" style="margin-bottom:12px"></div>
+        <div class="row gap8">
+          <input id="s-newDept" placeholder="e.g. Lighting, Sound, Video…" style="flex:1">
+          <input id="s-newDeptColor" type="color" value="#0F6E56" style="width:42px;height:38px;padding:2px 4px;border-radius:6px;border:1px solid var(--border2);cursor:pointer">
+          <button class="btn ba bsm" onclick="addDept()">+ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Overdue Reminders ── -->
+    <div class="panel" data-perm="admin">
+      <div class="ph"><span class="pt">⏰ Overdue Reminders</span></div>
+      <div class="pb">
+        <p class="dim mb12">When to flag gear checkouts as overdue and send email reminders.</p>
+        <div class="fg mb12"><label>Grace period after due date (days)</label><input type="number" id="s-overdueGrace" placeholder="0" min="0" max="30"></div>
+        <div class="fg mb12"><label>Auto-reminder after overdue (days)</label><input type="number" id="s-reminderAfter" placeholder="3" min="1" max="30"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <input type="checkbox" id="s-emailReminders" style="width:18px;height:18px;cursor:pointer">
+          <label for="s-emailReminders" style="font-size:13px;letter-spacing:0;text-transform:none;color:var(--text);cursor:pointer">Send email reminders automatically</label>
+        </div>
+        <button class="btn ba" onclick="saveOverdueSettings()">Save</button>
+      </div>
+    </div>
+
+    <!-- ── Training Options ── -->
     <div class="panel" data-perm="admin">
       <div class="ph"><span class="pt">🎓 Training Options</span></div>
       <div class="pb">
-        <p class="dim mb12">Customize the training/skill options crew members can be tagged with. Admins only.</p>
+        <p class="dim mb12">Skill tags crew members can be assigned.</p>
         <div id="trainingOptsEl" style="margin-bottom:12px"></div>
         <div class="row gap8">
           <input id="newTrainingOpt" placeholder="e.g. Sound Engineering" style="flex:1">
@@ -1790,10 +1964,11 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       </div>
     </div>
 
+    <!-- ── Schedule Roles ── -->
     <div class="panel" data-perm="admin">
       <div class="ph"><span class="pt">🎭 Schedule Roles</span></div>
       <div class="pb">
-        <p class="dim mb12">Customize the station roles available when scheduling crew. Admins only.</p>
+        <p class="dim mb12">Station roles available when scheduling crew.</p>
         <div id="rolesListEl" style="margin-bottom:12px"></div>
         <div class="row gap8">
           <input id="newRoleName" placeholder="Role name e.g. Stage Manager" style="flex:1">
@@ -1803,21 +1978,7 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       </div>
     </div>
 
-    <div class="panel" id="claimMasterPanel">
-      <div class="ph"><span class="pt">👑 Claim Master Admin</span></div>
-      <div class="pb">
-        <p class="dim mb12">No master admin has been set yet. The person who claims this role will have full control over the system — including resetting data and deleting fixtures.</p>
-        <p class="dim mb12">Once claimed, this can only be transferred by the current master admin.</p>
-        <button class="btn ba" onclick="claimMasterAdmin()">👑 Claim Master Admin</button>
-      </div>
-    </div>
-    <div class="panel" data-perm="master">
-      <div class="ph"><span class="pt">👑 Role Management</span></div>
-      <div class="pb">
-        <p class="dim mb12">Assign admin roles to crew members. Only the master admin can change roles.</p>
-        <div id="roleMgmtList"></div>
-      </div>
-    </div>
+    <!-- ── Maintenance Defaults ── -->
     <div class="panel">
       <div class="ph"><span class="pt">🔧 Maintenance Defaults</span></div>
       <div class="pb">
@@ -1827,6 +1988,44 @@ body.dark-mode select option { background:#161b22; color:#e6edf3; }
       </div>
     </div>
 
+    <!-- ── Push Notifications ── -->
+    <div class="panel">
+      <div class="ph"><span class="pt">🔔 Push Notifications</span></div>
+      <div class="pb">
+        <p class="dim mb12">Get browser notifications when a fixture goes out or stock runs low.</p>
+        <div id="notifStatus" class="mb12"></div>
+        <button class="btn bb" onclick="requestNotifPermission()">Enable Notifications</button>
+      </div>
+    </div>
+
+    <!-- ── Admin PIN ── -->
+    <div class="panel">
+      <div class="ph"><span class="pt">🔒 Admin PIN</span></div>
+      <div class="pb">
+        <p class="dim mb12">Protect reset and delete actions with a 4-digit PIN. Leave blank to disable.</p>
+        <div class="fg mb12"><label>Current PIN</label><input type="password" id="currentPin" placeholder="Enter current PIN or leave blank" maxlength="4"></div>
+        <div class="fg mb12"><label>New PIN (leave blank to remove)</label><input type="password" id="newPin" placeholder="New 4-digit PIN" maxlength="4"></div>
+        <button class="btn ba" data-perm="admin" onclick="savePin()">Save PIN</button>
+      </div>
+    </div>
+
+    <!-- ── Claim / Role Management ── -->
+    <div class="panel" id="claimMasterPanel">
+      <div class="ph"><span class="pt">👑 Claim Master Admin</span></div>
+      <div class="pb">
+        <p class="dim mb12">No master admin has been set yet. The person who claims this role will have full system control.</p>
+        <button class="btn ba" onclick="claimMasterAdmin()">👑 Claim Master Admin</button>
+      </div>
+    </div>
+    <div class="panel" data-perm="master">
+      <div class="ph"><span class="pt">👑 Role Management</span></div>
+      <div class="pb">
+        <p class="dim mb12">Assign admin roles to crew members. Master admin only.</p>
+        <div id="roleMgmtList"></div>
+      </div>
+    </div>
+
+    <!-- ── Account ── -->
     <div class="panel" style="border-color:rgba(224,60,60,.3)">
       <div class="ph"><span class="pt">👤 Account</span></div>
       <div class="pb">
@@ -2643,6 +2842,7 @@ window._onRemoteData=function(r){
   // Schedule templates
   if(r.settings&&r.settings.scheduleTemplates) db.settings.scheduleTemplates=r.settings.scheduleTemplates;
   lsave();
+  applyCustomisation();
   // Try to resume a saved session now that Firebase has loaded real crew data
   const loginVisible = document.getElementById('loginScreen')?.style.display === 'flex';
   if(!_techId){
@@ -3158,6 +3358,17 @@ function getMaintDue(){
 }
 
 // ── Fixtures ──
+window._fixTab='list';
+function setFixTab(tab, btn){
+  window._fixTab=tab;
+  document.querySelectorAll('#fixtab-list,#fixtab-map').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('fix-list-view').style.display=tab==='list'?'':'none';
+  document.getElementById('fix-map-view').style.display=tab==='map'?'':'none';
+  if(tab==='list')renderFix();
+  if(tab==='map')renderFixMap();
+}
+
 function renderFix(){
   const filter=document.getElementById('fixFilter')?.value||'all';
   const maintDueIds=new Set(getMaintDue().map(f=>f.id));
@@ -3664,40 +3875,180 @@ function renderCrew(){
 // ── Settings ──
 function renderSettings(){
   const s=db.settings||{};
-  // Update account panel
+  // Account
   const t=getCurTech();
   const signedInEl=document.getElementById('settingsSignedInAs');
   if(signedInEl) signedInEl.textContent=t?(t.avatar||'👤')+' '+t.name:'Not logged in';
-  // Render roles and training options lists
   renderRolesList();
   renderTrainingOptions();
-  // Show/hide claim master panel
+  // Claim master panel
   const claimPanel=document.getElementById('claimMasterPanel');
-  if(claimPanel){
-    const hasMaster=db.technicians.some(t=>t.userRole==='master');
-    claimPanel.style.display=(!hasMaster&&getCurTech())?'':'none';
-  }
-  // Render role management list (master only)
+  if(claimPanel){const hasMaster=db.technicians.some(t=>t.userRole==='master');claimPanel.style.display=(!hasMaster&&getCurTech())?'':'none';}
+  // Role management
   const roleList=document.getElementById('roleMgmtList');
   if(roleList&&isMaster()){
     roleList.innerHTML=db.technicians.filter(t=>t.userRole!=='master').map(t=>`
       <div class="row jbet" style="padding:10px 0;border-bottom:1px solid var(--border)">
-        <div class="row gap8">
-          <span style="font-size:20px">${t.avatar||'👤'}</span>
-          <div><div class="fw7">${t.name}</div><div class="dim">${t.role||'Technician'}</div></div>
-        </div>
+        <div class="row gap8"><span style="font-size:20px">${t.avatar||'👤'}</span><div><div class="fw7">${t.name}</div><div class="dim">${t.role||'Technician'}</div></div></div>
         <select onchange="setUserRole('${t.id}',this.value)" style="width:auto;padding:5px 8px;font-size:11px">
           <option value="user" ${(t.userRole||'user')==='user'?'selected':''}>👤 Regular User</option>
           <option value="admin" ${t.userRole==='admin'?'selected':''}>🔑 User Admin</option>
-        </select>
-      </div>`).join('') || '<p class="dim">No other crew members yet.</p>';
+        </select></div>`).join('')||'<p class="dim">No other crew members yet.</p>';
   }
   document.getElementById('maintInterval').value=s.maintInterval||90;
+  // Notifications
   const np=document.getElementById('notifStatus');
-  if(!('Notification' in window)){np.innerHTML='<p class="dim">Notifications not supported in this browser.</p>';}
-  else if(Notification.permission==='granted'){np.innerHTML='<span class="badge bok">✅ Notifications enabled</span>';}
+  if(np){if(!('Notification' in window)){np.innerHTML='<p class="dim">Notifications not supported.</p>';}
+  else if(Notification.permission==='granted'){np.innerHTML='<span class="badge bok">✅ Enabled</span>';}
   else if(Notification.permission==='denied'){np.innerHTML='<span class="badge bout">Blocked — enable in browser settings</span>';}
-  else{np.innerHTML='<span class="badge blow">Not yet enabled</span>';}
+  else{np.innerHTML='<span class="badge blow">Not yet enabled</span>';}}
+  // Branding
+  const el_on=document.getElementById('s-orgName');const el_oe=document.getElementById('s-orgEmoji');const el_ot=document.getElementById('s-orgTagline');
+  if(el_on)el_on.value=s.orgName||'';if(el_oe)el_oe.value=s.orgEmoji||'';if(el_ot)el_ot.value=s.orgTagline||'';
+  // Accent colour swatches
+  const swatchEl=document.getElementById('s-colourSwatches');
+  if(swatchEl){
+    const presets=['#0F6E56','#1a6fa8','#7c3aed','#c2410c','#0f766e','#b45309'];
+    swatchEl.innerHTML=presets.map(c=>`<div onclick="document.getElementById('s-accentHex').value='${c}';previewAccent('${c}')" style="height:36px;border-radius:8px;background:${c};cursor:pointer;border:2px solid ${(s.accentColour||'#0F6E56')===c?'#fff':'transparent'};box-shadow:${(s.accentColour||'#0F6E56')===c?'0 0 0 2px '+c:'none'};transition:all .15s"></div>`).join('');
+  }
+  const hexEl=document.getElementById('s-accentHex');if(hexEl)hexEl.value=s.accentColour||'#0F6E56';
+  const prevEl=document.getElementById('s-accentPreview');if(prevEl)prevEl.style.background=s.accentColour||'#0F6E56';
+  // Widget toggles
+  const wtEl=document.getElementById('s-widgetToggles');
+  if(wtEl){
+    const widgets=[
+      {key:'w_alerts',label:'🚨 Alerts panel'},
+      {key:'w_stats',label:'📊 Stats cards'},
+      {key:'w_schedule',label:'📅 Upcoming schedule'},
+      {key:'w_checkouts',label:'📤 Active checkouts'},
+      {key:'w_maintenance',label:'🔧 Maintenance due'},
+      {key:'w_announcements',label:'📢 Announcements'},
+    ];
+    const wp=s.widgetPrefs||{};
+    wtEl.innerHTML=widgets.map(w=>`
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-family:var(--head);color:var(--text);letter-spacing:0;text-transform:none">
+        <input type="checkbox" id="wt-${w.key}" ${wp[w.key]===false?'':'checked'} style="width:18px;height:18px;cursor:pointer;accent-color:var(--amber)">
+        ${w.label}
+      </label>`).join('');
+  }
+  // Gear categories
+  renderGearCats();
+  // Departments
+  renderDeptsSettings();
+  // Overdue settings
+  const og=document.getElementById('s-overdueGrace');const ra=document.getElementById('s-reminderAfter');const er=document.getElementById('s-emailReminders');
+  if(og)og.value=s.overdueGrace??0;if(ra)ra.value=s.reminderAfter??3;if(er)er.checked=!!s.emailReminders;
+}
+
+// ── Branding ──
+function saveBranding(){
+  if(!db.settings)db.settings={};
+  db.settings.orgName=(document.getElementById('s-orgName').value||'').trim();
+  db.settings.orgEmoji=(document.getElementById('s-orgEmoji').value||'').trim();
+  db.settings.orgTagline=(document.getElementById('s-orgTagline').value||'').trim();
+  applyBranding();save();toast('Branding saved','success');
+}
+function applyBranding(){
+  const s=db.settings||{};
+  const name=s.orgName||'KCC Technical';
+  const emoji=s.orgEmoji||'';
+  // Sidebar logo text
+  document.querySelectorAll('.logo-text').forEach(el=>{el.textContent=name;});
+  // Login screen wordmark
+  const lw=document.getElementById('ls-wordmark');if(lw)lw.textContent=(emoji?emoji+' ':'')+name;
+  const lt=document.getElementById('ls-tagline');if(lt)lt.textContent=s.orgTagline||'Production & Technical';
+  document.title=name;
+}
+
+// ── Accent colour ──
+function previewAccent(hex){
+  const prevEl=document.getElementById('s-accentPreview');
+  if(prevEl)prevEl.style.background=hex||'#0F6E56';
+}
+function saveAccentColour(){
+  const hex=(document.getElementById('s-accentHex').value||'').trim();
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex)){toast('Enter a valid hex colour e.g. #1a6fa8','error');return;}
+  if(!db.settings)db.settings={};
+  db.settings.accentColour=hex;
+  applyAccentColour(hex);save();renderSettings();toast('Colour applied','success');
+}
+function applyAccentColour(hex){
+  if(!hex)return;
+  // Derive a darker shade (~80% brightness)
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  const dark='rgb('+Math.round(r*.7)+','+Math.round(g*.7)+','+Math.round(b*.7)+')';
+  const glow='rgba('+r+','+g+','+b+',.08)';
+  document.documentElement.style.setProperty('--amber',hex);
+  document.documentElement.style.setProperty('--amber2',dark);
+  document.documentElement.style.setProperty('--aglow',glow);
+  document.documentElement.style.setProperty('--blue',hex);
+  document.documentElement.style.setProperty('--bglow',glow);
+}
+
+// ── Widget prefs ──
+function saveWidgetPrefs(){
+  if(!db.settings)db.settings={};
+  const keys=['w_alerts','w_stats','w_schedule','w_checkouts','w_maintenance','w_announcements'];
+  const prefs={};
+  keys.forEach(k=>{const el=document.getElementById('wt-'+k);if(el)prefs[k]=el.checked;});
+  db.settings.widgetPrefs=prefs;save();toast('Dashboard widgets saved','success');
+}
+
+// ── Gear categories ──
+const DEFAULT_GEAR_CATS=['Lighting','Audio','Video','Cables','Power','Backline','Rigging','Other'];
+function getGearCats(){return db.settings?.gearCategories||DEFAULT_GEAR_CATS;}
+function renderGearCats(){
+  const el=document.getElementById('s-gearCatsEl');if(!el)return;
+  const cats=getGearCats();
+  el.innerHTML=cats.map((c,i)=>`<div class="row jbet" style="padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;font-family:var(--head)">${c}</span><button class="btn br bsm" onclick="removeGearCat(${i})">✕</button></div>`).join('')||'<p class="dim">No categories.</p>';
+}
+function addGearCat(){
+  const inp=document.getElementById('s-newGearCat');const v=(inp.value||'').trim();if(!v){toast('Enter a category name','error');return;}
+  if(!db.settings)db.settings={};
+  if(!db.settings.gearCategories)db.settings.gearCategories=[...DEFAULT_GEAR_CATS];
+  if(db.settings.gearCategories.includes(v)){toast('Already exists','error');return;}
+  db.settings.gearCategories.push(v);inp.value='';save();renderGearCats();toast('Category added','success');
+}
+function removeGearCat(i){
+  if(!db.settings?.gearCategories)return;
+  db.settings.gearCategories.splice(i,1);save();renderGearCats();
+}
+
+// ── Departments ──
+const DEFAULT_DEPTS=[{name:'Lighting',color:'#0F6E56'},{name:'Audio',color:'#1a6fa8'},{name:'Video',color:'#7c3aed'}];
+function getDepts(){return db.settings?.departments||DEFAULT_DEPTS;}
+function renderDeptsSettings(){
+  const el=document.getElementById('s-deptsEl');if(!el)return;
+  const depts=getDepts();
+  el.innerHTML=depts.map((d,i)=>`<div class="row jbet" style="padding:6px 0;border-bottom:1px solid var(--border)"><div class="row gap8"><div style="width:14px;height:14px;border-radius:3px;background:${d.color||'#888'};flex-shrink:0"></div><span style="font-size:13px;font-family:var(--head)">${d.name}</span></div><button class="btn br bsm" onclick="removeDept(${i})">✕</button></div>`).join('')||'<p class="dim">No departments.</p>';
+}
+function addDept(){
+  const ni=document.getElementById('s-newDept');const ci=document.getElementById('s-newDeptColor');
+  const name=(ni.value||'').trim();if(!name){toast('Enter a department name','error');return;}
+  if(!db.settings)db.settings={};
+  if(!db.settings.departments)db.settings.departments=[...DEFAULT_DEPTS];
+  db.settings.departments.push({name,color:ci.value||'#0F6E56'});
+  ni.value='';save();renderDeptsSettings();toast('Department added','success');
+}
+function removeDept(i){
+  if(!db.settings?.departments)return;
+  db.settings.departments.splice(i,1);save();renderDeptsSettings();
+}
+
+// ── Overdue settings ──
+function saveOverdueSettings(){
+  if(!db.settings)db.settings={};
+  db.settings.overdueGrace=parseInt(document.getElementById('s-overdueGrace').value)||0;
+  db.settings.reminderAfter=parseInt(document.getElementById('s-reminderAfter').value)||3;
+  db.settings.emailReminders=document.getElementById('s-emailReminders').checked;
+  save();toast('Overdue settings saved','success');
+}
+
+// ── Apply saved customisation on boot ──
+function applyCustomisation(){
+  const s=db.settings||{};
+  if(s.accentColour)applyAccentColour(s.accentColour);
+  applyBranding();
 }
 function claimMasterAdmin(){
   const t=getCurTech();
@@ -6557,10 +6908,318 @@ function resendWelcomeEmail(techId) {
   sendWelcomeEmail(t, pw || null);
 }
 
+// ════════════════════════════════════════════════
+// ── FIXTURE MAP ENGINE ──────────────────────────
+// ════════════════════════════════════════════════
+(function(){
+  // ── State ──
+  let _pan={x:40,y:40},_scale=1,_dragging=null,_dragType=null,_dragStart=null,_draggingZone=null,_zoneDragMoved=false;
+  const SVG_NS='http://www.w3.org/2000/svg';
+  let _mapInited=false;
+
+  // ── Colour helper ──
+  function fixColor(f){
+    const maintDueIds=new Set(getMaintDue().map(x=>x.id));
+    if(f.status==='out') return '#A32D2D';
+    if(maintDueIds.has(f.id)) return '#BA7517';
+    return '#3B6D11';
+  }
+
+  // ── SVG helpers ──
+  function svgEl(tag,attrs,parent){
+    const el=document.createElementNS(SVG_NS,tag);
+    Object.entries(attrs||{}).forEach(([k,v])=>el.setAttribute(k,v));
+    if(parent)parent.appendChild(el);
+    return el;
+  }
+
+  // ── Transform layer to pan/zoom ──
+  function applyTransform(){
+    const layers=['map-grid-layer','map-zones-layer','map-fixtures-layer'];
+    layers.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el)el.setAttribute('transform',`translate(${_pan.x},${_pan.y}) scale(${_scale})`);
+    });
+    // Also reposition the grid pattern for infinite feel
+    const pat=document.getElementById('map-grid');
+    if(pat){pat.setAttribute('x',_pan.x%40);pat.setAttribute('y',_pan.y%40);}
+  }
+
+  // ── Render all zones ──
+  function renderZones(){
+    const layer=document.getElementById('map-zones-layer');if(!layer)return;
+    layer.innerHTML='';
+    const zones=db.settings?.mapZones||[];
+    zones.forEach((z,zi)=>{
+      const g=svgEl('g',{},layer);
+      const col=z.color||'#0F6E56';
+      const rx=z.x!=null?z.x:20, ry=z.y!=null?z.y:20;
+      svgEl('rect',{x:rx,y:ry,width:z.w||200,height:z.h||150,rx:8,fill:col+'14',stroke:col+'55','stroke-width':1.5,'stroke-dasharray':'6,3'},g);
+      svgEl('text',{x:rx+10,y:ry+18,'font-size':11,'font-family':'IBM Plex Mono, monospace','font-weight':600,fill:col+'cc','letter-spacing':'1'},g).textContent=z.name.toUpperCase();
+      if(isAdmin()){
+        // Drag handle corner
+        const dh=svgEl('rect',{x:rx,y:ry,width:z.w||200,height:z.h||150,rx:8,fill:'transparent',cursor:'move'},g);
+        dh.addEventListener('mousedown',e=>{if(e.button!==0)return;e.stopPropagation();_zoneDragMoved=false;_draggingZone={zi,ox:e.clientX,oy:e.clientY,zx:z.x!=null?z.x:20,zy:z.y!=null?z.y:20};});
+        // Resize handle
+        const rh=svgEl('rect',{x:rx+(z.w||200)-10,y:ry+(z.h||150)-10,width:10,height:10,fill:col,rx:2,cursor:'se-resize'},g);
+        rh.addEventListener('mousedown',e=>{if(e.button!==0)return;e.stopPropagation();_draggingZone={zi,ox:e.clientX,oy:e.clientY,resize:true,zw:z.w||200,zh:z.h||150};});
+        // Delete btn
+        const delG=svgEl('g',{cursor:'pointer'},g);
+        svgEl('circle',{cx:rx+(z.w||200)-4,cy:ry+4,r:7,fill:'#A32D2D'},delG);
+        svgEl('text',{x:rx+(z.w||200)-4,y:ry+4+4,'font-size':9,'text-anchor':'middle',fill:'#fff','font-weight':700},delG).textContent='✕';
+        delG.addEventListener('click',e=>{e.stopPropagation();if(_zoneDragMoved)return;removeMapZone(zi);});
+      }
+    });
+  }
+
+  // ── Render all fixtures on map ──
+  function renderFixtureNodes(){
+    const layer=document.getElementById('map-fixtures-layer');if(!layer)return;
+    layer.innerHTML='';
+    const admin=isAdmin();
+    db.fixtures.forEach(f=>{
+      if(f.mapX==null||f.mapY==null)return;
+      const col=fixColor(f);
+      const g=svgEl('g',{transform:`translate(${f.mapX},${f.mapY})`,cursor:admin?'grab':'pointer','data-id':f.id},layer);
+      // Glow ring for OUT fixtures
+      if(f.status==='out') svgEl('circle',{cx:0,cy:0,r:16,fill:col+'22',stroke:col+'55','stroke-width':1},g);
+      // Main dot
+      svgEl('circle',{cx:0,cy:0,r:11,fill:col,stroke:'#fff','stroke-width':2},g);
+      // Icon
+      const icons={wash:'⬤',spot:'★',par:'◆',fresnel:'◉',led:'✦',follow:'◎',other:'●'};
+      const ic=svgEl('text',{x:0,y:4,'text-anchor':'middle','font-size':9,fill:'#fff','font-weight':700,'pointer-events':'none'},g);
+      ic.textContent=f.id.slice(0,3);
+      // Label below
+      const lb=svgEl('text',{x:0,y:26,'text-anchor':'middle','font-size':9,'font-family':'IBM Plex Mono, monospace',fill:'#374151','font-weight':600},g);
+      lb.textContent=f.name.length>12?f.name.slice(0,11)+'…':f.name;
+      // Click → view fixture
+      g.addEventListener('click',e=>{if(_dragging)return;e.stopPropagation();viewFixture(f.id);});
+      // Drag to reposition (admin only)
+      if(admin){
+        g.addEventListener('mousedown',e=>{
+          if(e.button!==0)return;
+          e.stopPropagation();
+          _dragging=f.id;_dragType='fixture';
+          _dragStart={mx:e.clientX,my:e.clientY,fx:f.mapX,fy:f.mapY};
+          g.setAttribute('cursor','grabbing');
+        });
+        // Touch support
+        g.addEventListener('touchstart',e=>{
+          e.preventDefault();e.stopPropagation();
+          const t=e.touches[0];
+          _dragging=f.id;_dragType='fixture';
+          _dragStart={mx:t.clientX,my:t.clientY,fx:f.mapX,fy:f.mapY};
+        },{passive:false});
+      }
+    });
+  }
+
+  // ── Unplaced tray ──
+  function renderUnplaced(){
+    const unplaced=db.fixtures.filter(f=>f.mapX==null||f.mapY==null);
+    const btn=document.getElementById('map-unplaced-btn');
+    if(btn){
+      if(unplaced.length){btn.style.display='';btn.textContent='📌 '+unplaced.length+' Unplaced';}
+      else btn.style.display='none';
+    }
+    const list=document.getElementById('unplaced-fixtures-list');
+    const count=document.getElementById('unplaced-count');
+    if(list)list.innerHTML=unplaced.map(f=>`
+      <div draggable="true" data-fid="${f.id}"
+        ondragstart="mapTrayDragStart(event,'${f.id}')"
+        style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;background:${fixColor(f)}18;border:1px solid ${fixColor(f)}44;font-family:var(--mono);font-size:10px;font-weight:600;color:${fixColor(f)};cursor:grab;white-space:nowrap">
+        <span style="width:8px;height:8px;border-radius:50%;background:${fixColor(f)};display:inline-block"></span>${f.id} ${f.name.length>10?f.name.slice(0,9)+'…':f.name}
+      </div>`).join('');
+    if(count)count.textContent=unplaced.length+' fixtures not yet placed';
+  }
+
+  // ── Full map render ──
+  window.renderFixMap=function(){
+    const wrap=document.getElementById('map-canvas-wrap');if(!wrap)return;
+    if(!_mapInited){
+      _mapInited=true;
+      initMapInteraction();
+    }
+    applyTransform();
+    renderZones();
+    renderFixtureNodes();
+    renderUnplaced();
+    applyPermissions();
+  };
+
+  // ── Drag tray fixture onto map ──
+  window.mapTrayDragStart=function(e,fid){e.dataTransfer.setData('text/plain',fid);};
+  window._mapDragOver=function(e){e.preventDefault();};
+  window._mapDrop=function(e){
+    e.preventDefault();
+    const fid=e.dataTransfer.getData('text/plain');
+    const f=db.fixtures.find(x=>x.id===fid);if(!f)return;
+    const wrap=document.getElementById('map-canvas-wrap');
+    const rect=wrap.getBoundingClientRect();
+    const mx=(e.clientX-rect.left-_pan.x)/_scale;
+    const my=(e.clientY-rect.top-_pan.y)/_scale;
+    f.mapX=Math.round(mx);f.mapY=Math.round(my);
+    save();renderFixMap();
+    const tray=document.getElementById('map-unplaced-tray');
+    if(tray&&db.fixtures.filter(x=>x.mapX==null).length===0)tray.style.display='none';
+  };
+
+  // ── Canvas pan + fixture drag interactions ──
+  function initMapInteraction(){
+    const wrap=document.getElementById('map-canvas-wrap');if(!wrap)return;
+    let _panning=false,_panStart=null;
+
+    wrap.addEventListener('dragover',window._mapDragOver);
+    wrap.addEventListener('drop',window._mapDrop);
+
+    wrap.addEventListener('mousedown',e=>{
+      if(_dragging||_draggingZone)return;
+      _panning=true;_panStart={mx:e.clientX,my:e.clientY,px:_pan.x,py:_pan.y};
+      wrap.style.cursor='grabbing';
+    });
+    window.addEventListener('mousemove',e=>{
+      if(_dragging&&_dragStart){
+        const f=db.fixtures.find(x=>x.id===_dragging);if(!f)return;
+        f.mapX=Math.round(_dragStart.fx+(e.clientX-_dragStart.mx)/_scale);
+        f.mapY=Math.round(_dragStart.fy+(e.clientY-_dragStart.my)/_scale);
+        renderFixtureNodes();renderUnplaced();
+        return;
+      }
+      if(_draggingZone){
+        const z=(db.settings?.mapZones||[])[_draggingZone.zi];if(!z)return;
+        if(_draggingZone.resize){
+          z.w=Math.max(60,Math.round(_draggingZone.zw+(e.clientX-_draggingZone.ox)/_scale));
+          z.h=Math.max(40,Math.round(_draggingZone.zh+(e.clientY-_draggingZone.oy)/_scale));
+        } else {
+          z.x=Math.round(_draggingZone.zx+(e.clientX-_draggingZone.ox)/_scale);
+          z.y=Math.round(_draggingZone.zy+(e.clientY-_draggingZone.oy)/_scale);
+        }
+        _zoneDragMoved=true;
+        renderZones();return;
+      }
+      if(!_panning||!_panStart)return;
+      _pan.x=_panStart.px+(e.clientX-_panStart.mx);
+      _pan.y=_panStart.py+(e.clientY-_panStart.my);
+      applyTransform();
+    });
+    window.addEventListener('mouseup',e=>{
+      if(_dragging){save();_dragging=null;_dragStart=null;renderFixtureNodes();renderUnplaced();}
+      if(_draggingZone){save();_draggingZone=null;renderZones();setTimeout(()=>{_zoneDragMoved=false;},100);}
+      if(_panning){_panning=false;wrap.style.cursor='grab';}
+    });
+    // Touch pan
+    let _touchPan=null;
+    wrap.addEventListener('touchstart',e=>{if(e.touches.length===1&&!_dragging){_touchPan={mx:e.touches[0].clientX,my:e.touches[0].clientY,px:_pan.x,py:_pan.y};}},{passive:true});
+    wrap.addEventListener('touchmove',e=>{
+      if(_dragging&&_dragStart&&e.touches.length===1){
+        const t=e.touches[0];
+        const f=db.fixtures.find(x=>x.id===_dragging);if(!f)return;
+        f.mapX=Math.round(_dragStart.fx+(t.clientX-_dragStart.mx)/_scale);
+        f.mapY=Math.round(_dragStart.fy+(t.clientY-_dragStart.my)/_scale);
+        renderFixtureNodes();return;
+      }
+      if(_touchPan&&e.touches.length===1){
+        e.preventDefault();
+        _pan.x=_touchPan.px+(e.touches[0].clientX-_touchPan.mx);
+        _pan.y=_touchPan.py+(e.touches[0].clientY-_touchPan.my);
+        applyTransform();
+      }
+    },{passive:false});
+    wrap.addEventListener('touchend',e=>{if(_dragging){save();_dragging=null;_dragStart=null;renderFixtureNodes();}if(_touchPan)_touchPan=null;});
+    // Scroll to zoom
+    wrap.addEventListener('wheel',e=>{
+      e.preventDefault();
+      const rect=wrap.getBoundingClientRect();
+      const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+      const factor=e.deltaY<0?1.1:0.9;
+      _pan.x=mx+(_pan.x-mx)*factor;
+      _pan.y=my+(_pan.y-my)*factor;
+      _scale=Math.min(3,Math.max(0.3,_scale*factor));
+      applyTransform();
+    },{passive:false});
+  }
+
+  // ── Zoom buttons ──
+  window.mapZoom=function(factor){
+    const wrap=document.getElementById('map-canvas-wrap');if(!wrap)return;
+    const cx=wrap.offsetWidth/2,cy=wrap.offsetHeight/2;
+    _pan.x=cx+(_pan.x-cx)*factor;
+    _pan.y=cy+(_pan.y-cy)*factor;
+    _scale=Math.min(3,Math.max(0.3,_scale*factor));
+    applyTransform();
+  };
+  window.mapResetView=function(){
+    // Fit all placed fixtures into view
+    const placed=db.fixtures.filter(f=>f.mapX!=null&&f.mapY!=null);
+    const zones=db.settings?.mapZones||[];
+    const wrap=document.getElementById('map-canvas-wrap');if(!wrap)return;
+    const W=wrap.offsetWidth,H=wrap.offsetHeight;
+    if(!placed.length&&!zones.length){_pan={x:W/2,y:H/2};_scale=1;applyTransform();return;}
+    const pts=[...placed.map(f=>({x:f.mapX,y:f.mapY})),...zones.map(z=>({x:(z.x||0)+(z.w||200)/2,y:(z.y||0)+(z.h||150)/2}))];
+    const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+    const minX=Math.min(...xs)-60,maxX=Math.max(...xs)+60;
+    const minY=Math.min(...ys)-60,maxY=Math.max(...ys)+60;
+    const s=Math.min(3,Math.max(0.2,Math.min((W-40)/(maxX-minX||1),(H-40)/(maxY-minY||1))));
+    _scale=s;
+    _pan={x:(W-(maxX+minX)*s)/2,y:(H-(maxY+minY)*s)/2};
+    applyTransform();
+  };
+
+  // ── Unplaced tray toggle ──
+  window.toggleUnplacedPanel=function(){
+    const tray=document.getElementById('map-unplaced-tray');
+    if(tray)tray.style.display=tray.style.display==='none'?'':'none';
+  };
+
+  // ── Zone editor ──
+  window.openMapZoneEditor=function(){
+    renderZoneList();
+    document.getElementById('m-mapZones').style.display='flex';
+  };
+  function renderZoneList(){
+    const el=document.getElementById('zone-list');if(!el)return;
+    const zones=db.settings?.mapZones||[];
+    if(!zones.length){el.innerHTML='<p class="dim">No zones yet. Add one below.</p>';return;}
+    el.innerHTML=zones.map((z,i)=>`
+      <div class="row jbet" style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div class="row gap8">
+          <div style="width:14px;height:14px;border-radius:3px;background:${z.color||'#0F6E56'};flex-shrink:0;margin-top:2px"></div>
+          <div><div class="fw7" style="font-size:13px">${z.name}</div><div class="dim">${z.w||200}×${z.h||150}px</div></div>
+        </div>
+        <button class="btn br bsm" onclick="removeMapZone(${i})">✕</button>
+      </div>`).join('');
+  }
+  window.addMapZone=function(){
+    const name=(document.getElementById('zone-name').value||'').trim();
+    if(!name){toast('Zone name required','error');return;}
+    if(!db.settings)db.settings={};
+    if(!db.settings.mapZones)db.settings.mapZones=[];
+    const zones=db.settings.mapZones;
+    // Auto-stack new zones to the right
+    const offsetX=zones.length?zones.reduce((m,z)=>Math.max(m,(z.x||0)+(z.w||200)+20),20):20;
+    zones.push({
+      name,
+      color:document.getElementById('zone-color').value||'#0F6E56',
+      x:offsetX,y:20,
+      w:parseInt(document.getElementById('zone-w').value)||200,
+      h:parseInt(document.getElementById('zone-h').value)||150
+    });
+    document.getElementById('zone-name').value='';
+    save();renderZoneList();renderZones();toast('Zone added','success');
+  };
+  window.removeMapZone=function(i){
+    if(!db.settings?.mapZones)return;
+    db.settings.mapZones.splice(i,1);
+    save();renderZoneList();renderZones();
+  };
+})();
+// ════════════════════════════════════════════════
+
 // ── BOOT ──
 lload();
 initTheme();
 applyTheme();
+applyCustomisation();
 loadTech();
 handleURLScan();
 applyPermissions();
@@ -9040,6 +9699,30 @@ document.addEventListener('DOMContentLoaded', function(){
     <div class="mf">
       <button class="btn bgh" onclick="document.getElementById('m-incidentReport').style.display='none'">Cancel</button>
       <button class="btn br" onclick="saveIncidentReport()">Submit Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Map Zone Editor Modal ══ -->
+<div id="m-mapZones" class="mover" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <div class="mh"><span class="mt">🏗️ Venue Zones</span><button class="xb" onclick="document.getElementById('m-mapZones').style.display='none'">✕</button></div>
+    <div class="mb">
+      <p class="dim mb12">Define named zones (rooms/areas) that appear on the fixture map. Drag fixtures inside zones to organise your venue layout.</p>
+      <div id="zone-list" style="margin-bottom:14px"></div>
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Add Zone</div>
+        <div class="fgrid" style="grid-template-columns:1fr 1fr">
+          <div class="fg"><label>Zone Name *</label><input id="zone-name" placeholder="e.g. Stage, FOH, Balcony"></div>
+          <div class="fg"><label>Colour</label><input id="zone-color" type="color" value="#0F6E56" style="height:42px;padding:2px 4px"></div>
+          <div class="fg"><label>Width (px)</label><input id="zone-w" type="number" value="200" min="60"></div>
+          <div class="fg"><label>Height (px)</label><input id="zone-h" type="number" value="150" min="40"></div>
+        </div>
+        <button class="btn ba bsm" style="margin-top:10px" onclick="addMapZone()">+ Add Zone</button>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bgh" onclick="document.getElementById('m-mapZones').style.display='none'">Close</button>
     </div>
   </div>
 </div>
